@@ -73,9 +73,9 @@ export default function Recap() {
           return (
             <Link key={moto.id} href={`/moto/${moto.id}`} className="card" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
               {moto.photo_principale_url ? (
-                <img src={moto.photo_principale_url} alt={`${moto.marque} ${moto.modele}`} style={{ width: '100%', height: 120, objectFit: 'cover', borderRadius: 10, marginBottom: 10 }} />
+                <img src={moto.photo_principale_url} alt={`${moto.marque} ${moto.modele}`} className="photo-carree" style={{ marginBottom: 10 }} />
               ) : (
-                <div className="photo-placeholder">Pas de photo</div>
+                <div className="photo-placeholder photo-carree" style={{ marginBottom: 10 }}>Pas de photo</div>
               )}
               <p style={{ fontWeight: 600, margin: '0 0 4px' }}>{moto.marque} {moto.modele}</p>
               <p style={{ fontSize: 14, color: '#6b6a63', margin: '0 0 10px' }}>{moto.annee} · {moto.kilometrage?.toLocaleString('fr-FR')} km</p>

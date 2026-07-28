@@ -141,6 +141,17 @@ label {
   margin-bottom: 10px;
 }
 
+.photo-carree {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 a { color: var(--ink); }
 
 .top-bar {

@@ -13,7 +13,7 @@ export default function Retour() {
   const [note, setNote] = useState(8);
   const [commentaire, setCommentaire] = useState('');
   const [noteEntretien, setNoteEntretien] = useState('');
-  const [photo, setPhoto] = useState(null);
+  const [photos, setPhotos] = useState([]);
   const [envoi, setEnvoi] = useState(false);
   const [error, setError] = useState('');
 
@@ -48,7 +48,7 @@ export default function Retour() {
       .eq('id', sortieId);
 
     if (updateError) {
-      setError("Une erreur est survenue, réessaie.");
+      setError(`Erreur : ${updateError.message}`);
       setEnvoi(false);
       return;
     }
@@ -58,9 +58,9 @@ export default function Retour() {
       dernier_roulage: new Date().toISOString().slice(0, 10),
     }).eq('id', moto.id);
 
-    if (photo) {
-      const chemin = `sorties/${sortieId}-${Date.now()}-${photo.name}`;
-      const { error: uploadError } = await supabase.storage.from('photos').upload(chemin, photo);
+    for (const fichier of photos) {
+      const chemin = `sorties/${sortieId}-${Date.now()}-${fichier.name}`;
+      const { error: uploadError } = await supabase.storage.from('photos').upload(chemin, fichier);
       if (!uploadError) {
         const { data: publicUrl } = supabase.storage.from('photos').getPublicUrl(chemin);
         await supabase.from('photos_sortie').insert({ sortie_id: sortieId, url: publicUrl.publicUrl });
@@ -88,7 +88,7 @@ export default function Retour() {
           required
         />
 
-        <label>Note sur la sortie : {note}/10</label>
+        <label>Quelle note donnes-tu à cette moto ? {note}/10</label>
         <input
           type="range"
           min="0"
@@ -114,12 +114,13 @@ export default function Retour() {
           onChange={(e) => setNoteEntretien(e.target.value)}
         />
 
-        <label htmlFor="photo">Ajouter une photo (facultatif)</label>
+        <label htmlFor="photo">Ajouter des photos (facultatif)</label>
         <input
           id="photo"
           type="file"
           accept="image/*"
-          onChange={(e) => setPhoto(e.target.files?.[0] || null)}
+          multiple
+          onChange={(e) => setPhotos(Array.from(e.target.files || []))}
         />
 
         {error && <p style={{ color: '#8a1f1f' }}>{error}</p>}

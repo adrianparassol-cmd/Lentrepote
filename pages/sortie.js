@@ -87,8 +87,8 @@ export default function Sortie() {
               {habituelles.map((m) => (
                 <button key={m.id} onClick={() => setMotoChoisie(m)} style={{ flexDirection: 'column', height: 'auto', padding: 12 }}>
                   {m.photo_principale_url
-                    ? <img src={m.photo_principale_url} alt="" style={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
-                    : <div className="photo-placeholder" style={{ height: 80, width: '100%' }}>Photo</div>}
+                    ? <img src={m.photo_principale_url} alt="" className="photo-carree" style={{ marginBottom: 8 }} />
+                    : <div className="photo-placeholder photo-carree" style={{ marginBottom: 8 }}>Photo</div>}
                   {m.marque} {m.modele}
                 </button>
               ))}
@@ -100,8 +100,8 @@ export default function Sortie() {
           {resultats.map((m) => (
             <button key={m.id} onClick={() => setMotoChoisie(m)} style={{ flexDirection: 'column', height: 'auto', padding: 12 }}>
               {m.photo_principale_url
-                ? <img src={m.photo_principale_url} alt="" style={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
-                : <div className="photo-placeholder" style={{ height: 80, width: '100%' }}>Photo</div>}
+                ? <img src={m.photo_principale_url} alt="" className="photo-carree" style={{ marginBottom: 8 }} />
+                : <div className="photo-placeholder photo-carree" style={{ marginBottom: 8 }}>Photo</div>}
               {m.marque} {m.modele}
             </button>
           ))}

@@ -5,9 +5,20 @@ import { useUser } from '../../../lib/useUser';
 
 const vide = {
   marque: '', modele: '', annee: '', date_achat: '', kilometrage: '',
-  etat: 'roulante', frequence_roulage_mois: 3, prochain_ct: '', notes_entretien: '',
+  etat: 'roulante', frequence_roulage_mois: 12, dernier_roulage: '',
+  dernier_ct: '', frequence_ct_mois: 24, notes_entretien: '',
   photo_principale_url: '',
 };
+
+// Convertit les chaînes vides en null pour les champs de type date
+// (Postgres refuse une chaîne vide comme valeur de date)
+function nettoyerDates(form) {
+  const copie = { ...form };
+  ['date_achat', 'dernier_roulage', 'dernier_ct'].forEach((champ) => {
+    if (!copie[champ]) copie[champ] = null;
+  });
+  return copie;
+}
 
 export default function EditMoto() {
   const router = useRouter();
@@ -45,13 +56,14 @@ export default function EditMoto() {
       }
     }
 
-    const payload = {
+    const payload = nettoyerDates({
       ...form,
       annee: form.annee ? parseInt(form.annee, 10) : null,
       kilometrage: form.kilometrage ? parseInt(form.kilometrage, 10) : 0,
       frequence_roulage_mois: form.frequence_roulage_mois ? parseInt(form.frequence_roulage_mois, 10) : null,
+      frequence_ct_mois: form.frequence_ct_mois ? parseInt(form.frequence_ct_mois, 10) : null,
       photo_principale_url: photoUrl,
-    };
+    });
 
     let result;
     if (estNouveau) {
@@ -62,7 +74,7 @@ export default function EditMoto() {
 
     setEnvoi(false);
     if (result.error) {
-      setError("Une erreur est survenue, réessaie.");
+      setError(`Erreur : ${result.error.message}`);
       return;
     }
     router.replace(`/moto/${result.data.id}`);
@@ -97,11 +109,17 @@ export default function EditMoto() {
           <option value="restauration">Besoin de restauration</option>
         </select>
 
+        <label htmlFor="dernier_roulage">Dernier roulage</label>
+        <input id="dernier_roulage" type="date" value={form.dernier_roulage || ''} onChange={(e) => update('dernier_roulage', e.target.value)} />
+
         <label htmlFor="frequence">Rappel : faire rouler tous les combien de mois ?</label>
         <input id="frequence" type="number" value={form.frequence_roulage_mois || ''} onChange={(e) => update('frequence_roulage_mois', e.target.value)} />
 
-        <label htmlFor="ct">Prochain contrôle technique</label>
-        <input id="ct" type="date" value={form.prochain_ct || ''} onChange={(e) => update('prochain_ct', e.target.value)} />
+        <label htmlFor="dernier_ct">Dernier contrôle technique</label>
+        <input id="dernier_ct" type="date" value={form.dernier_ct || ''} onChange={(e) => update('dernier_ct', e.target.value)} />
+
+        <label htmlFor="frequence_ct">Rappel CT tous les combien de mois ?</label>
+        <input id="frequence_ct" type="number" value={form.frequence_ct_mois || ''} onChange={(e) => update('frequence_ct_mois', e.target.value)} />
 
         <label htmlFor="notes">Notes d'entretien</label>
         <textarea id="notes" rows={4} value={form.notes_entretien || ''} onChange={(e) => update('notes_entretien', e.target.value)} />
