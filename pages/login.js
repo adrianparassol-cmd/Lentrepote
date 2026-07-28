@@ -17,7 +17,7 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      setError("Email ou mot de passe incorrect.");
+      setError(`Erreur : ${error.message}`);
       return;
     }
     router.replace('/recap');
