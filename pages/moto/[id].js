@@ -16,6 +16,7 @@ export default function FicheMoto() {
   const [sortieActive, setSortieActive] = useState(null);
   const [photosParSortie, setPhotosParSortie] = useState({});
   const [dansListeEnvies, setDansListeEnvies] = useState(false);
+  const [carteGrise, setCarteGrise] = useState(null);
 
   useEffect(() => {
     if (!id) return;
@@ -30,10 +31,19 @@ export default function FicheMoto() {
       .select('*, profiles(nom)')
       .eq('moto_id', id)
       .order('date_depart', { ascending: false });
+    const { data: carteGriseData } = await supabase
+      .from('documents_moto')
+      .select('*')
+      .eq('moto_id', id)
+      .eq('type', 'carte_grise')
+      .order('date_document', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
     setMoto(motoData);
     setGaleriePhotosMoto(galerieData || []);
     setHistorique(sortiesData || []);
     setSortieActive((sortiesData || []).find((s) => s.statut === 'en_cours') || null);
+    setCarteGrise(carteGriseData || null);
 
     const idsSorties = (sortiesData || []).map((s) => s.id);
     if (idsSorties.length) {
@@ -77,6 +87,12 @@ export default function FicheMoto() {
       }
     }
     setDansListeEnvies(!dansListeEnvies);
+  }
+
+  async function voirCarteGrise() {
+    if (!carteGrise) return;
+    const { data, error } = await supabase.storage.from('documents').createSignedUrl(carteGrise.chemin, 3600);
+    if (!error && data) window.open(data.signedUrl, '_blank');
   }
 
   if (loading || !moto) return null;
@@ -155,6 +171,7 @@ export default function FicheMoto() {
       )}
 
       <div className="card">
+        <p><strong>Immatriculation :</strong> {moto.immatriculation || '—'}</p>
         <p><strong>Année :</strong> {moto.annee || '—'}</p>
         <p><strong>Date d'achat :</strong> {formatDateFR(moto.date_achat) || '—'}</p>
         <p><strong>Kilométrage :</strong> {moto.kilometrage?.toLocaleString('fr-FR')} km</p>
@@ -166,6 +183,12 @@ export default function FicheMoto() {
           <p><strong>Actuellement utilisée par :</strong> {sortieActive.profiles?.nom}</p>
         )}
       </div>
+
+      {carteGrise && (
+        <button type="button" className="btn" style={{ width: '100%', marginBottom: 14 }} onClick={voirCarteGrise}>
+          Voir la carte grise
+        </button>
+      )}
 
       {profile?.is_admin && (
         <Link href={`/admin/moto/${moto.id}`} className="btn" style={{ marginBottom: 14, display: 'inline-flex' }}>

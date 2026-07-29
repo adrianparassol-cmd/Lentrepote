@@ -29,8 +29,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    const cheminEncode = chemin.split('/').map(encodeURIComponent).join('/');
     const fileRes = await fetch(
-      `${supabaseUrl}/storage/v1/object/documents/${encodeURIComponent(chemin)}`,
+      `${supabaseUrl}/storage/v1/object/documents/${cheminEncode}`,
       { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } }
     );
     if (!fileRes.ok) {
@@ -47,7 +48,7 @@ export default async function handler(req, res) {
 
     const consigne = `Tu regardes un document scanné concernant une moto ancienne (facture, carte grise, certificat d'immatriculation...).
 Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour, sans balises markdown, avec exactement ces champs :
-{"type": "achat" | "entretien" | "carte_grise" | "autre", "montant": nombre ou null (montant total TTC en euros si c'est une facture), "date": "AAAA-MM-JJ" ou null, "annee": nombre ou null (année de 1ère mise en circulation si carte grise), "marque": chaîne ou null, "modele": chaîne ou null}
+{"type": "achat" | "entretien" | "carte_grise" | "autre", "montant": nombre ou null (montant total TTC en euros si c'est une facture), "date": "AAAA-MM-JJ" ou null (date de la facture, ou date d'immatriculation/de délivrance si c'est une carte grise), "annee": nombre ou null (année de 1ère mise en circulation si carte grise), "marque": chaîne ou null, "modele": chaîne ou null, "immatriculation": chaîne ou null (numéro d'immatriculation/plaque du véhicule, ex. "AB-123-CD")}
 Si une information est absente ou illisible, mets null pour ce champ précis. N'invente jamais une valeur.`;
 
     const apiRes = await fetch('https://api.anthropic.com/v1/messages', {

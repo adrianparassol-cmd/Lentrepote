@@ -8,7 +8,7 @@ import NavBar from '../../../components/NavBar';
 
 const vide = {
   marque: '', modele: '', annee: '', date_achat: '', kilometrage: '',
-  etat: 'roulante', dernier_roulage: '', photo_principale_url: '',
+  etat: 'roulante', dernier_roulage: '', photo_principale_url: '', immatriculation: '',
 };
 
 const TYPES_DOCUMENTS = {
@@ -175,9 +175,38 @@ export default function EditMoto() {
 
   const [analyseEnCours, setAnalyseEnCours] = useState(null);
   const [analyseGlobaleEnCours, setAnalyseGlobaleEnCours] = useState(false);
+  const [montantsEdites, setMontantsEdites] = useState({});
+  const [erreursDocuments, setErreursDocuments] = useState({});
+  const [enregistrementEnCours, setEnregistrementEnCours] = useState(null);
+  const [datesEditees, setDatesEditees] = useState({});
+
+  function montantAffiche(doc) {
+    return montantsEdites[doc.id] !== undefined ? montantsEdites[doc.id] : (doc.montant ?? '');
+  }
+
+  function dateAffichee(doc) {
+    return datesEditees[doc.id] !== undefined ? datesEditees[doc.id] : (doc.date_document ?? '');
+  }
+
+  async function recalculerDateAchatDepuisCG() {
+    const { data } = await supabase
+      .from('documents_moto')
+      .select('date_document')
+      .eq('moto_id', id)
+      .eq('type', 'carte_grise')
+      .not('date_document', 'is', null)
+      .order('date_document', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data?.date_document) {
+      await supabase.from('motos').update({ date_achat: data.date_document }).eq('id', id);
+      setForm((f) => ({ ...f, date_achat: data.date_document }));
+    }
+  }
 
   async function analyserDocument(doc) {
     setAnalyseEnCours(doc.id);
+    setErreursDocuments((e) => ({ ...e, [doc.id]: null }));
     try {
       const res = await fetch('/api/analyser-document', {
         method: 'POST',
@@ -185,25 +214,30 @@ export default function EditMoto() {
         body: JSON.stringify({ chemin: doc.chemin }),
       });
       const resultat = await res.json();
-      if (resultat.error) {
-        setError(`Erreur d'analyse (${doc.nom_fichier}) : ${resultat.error}`);
+      if (!res.ok || resultat.error) {
+        setErreursDocuments((e) => ({ ...e, [doc.id]: resultat.error || `Erreur serveur (${res.status})` }));
         return;
       }
       if (resultat.montant != null) {
-        await supabase.from('documents_moto').update({ montant: resultat.montant }).eq('id', doc.id);
+        setMontantsEdites((m) => ({ ...m, [doc.id]: resultat.montant }));
       }
-      // Pré-remplit l'année / la date d'achat de la moto si elles sont encore vides
+      if (resultat.date != null && (doc.type === 'achat' || doc.type === 'carte_grise')) {
+        setDatesEditees((d) => ({ ...d, [doc.id]: resultat.date }));
+      }
+      if (resultat.montant == null && resultat.date == null) {
+        setErreursDocuments((e) => ({ ...e, [doc.id]: "Rien d'exploitable trouvé sur ce document — à compléter à la main si besoin." }));
+      }
+      // Pré-remplit l'année / l'immatriculation de la moto si elles sont encore vides
       if (resultat.annee && !form.annee) {
         await supabase.from('motos').update({ annee: resultat.annee }).eq('id', id);
         setForm((f) => ({ ...f, annee: resultat.annee }));
       }
-      if (resultat.type === 'achat' && resultat.date && !form.date_achat) {
-        await supabase.from('motos').update({ date_achat: resultat.date }).eq('id', id);
-        setForm((f) => ({ ...f, date_achat: resultat.date }));
+      if (resultat.immatriculation && !form.immatriculation) {
+        await supabase.from('motos').update({ immatriculation: resultat.immatriculation }).eq('id', id);
+        setForm((f) => ({ ...f, immatriculation: resultat.immatriculation }));
       }
-      await chargerDocuments();
     } catch (err) {
-      setError(`Erreur d'analyse : ${err.message}`);
+      setErreursDocuments((e) => ({ ...e, [doc.id]: err.message }));
     } finally {
       setAnalyseEnCours(null);
     }
@@ -217,6 +251,45 @@ export default function EditMoto() {
       }
     }
     setAnalyseGlobaleEnCours(false);
+  }
+
+  async function enregistrerMontant(doc) {
+    setEnregistrementEnCours(doc.id);
+    const valeur = montantAffiche(doc);
+    const montant = valeur === '' ? null : parseFloat(valeur);
+    const { error } = await supabase.from('documents_moto').update({ montant }).eq('id', doc.id);
+    setEnregistrementEnCours(null);
+    if (error) {
+      setErreursDocuments((e) => ({ ...e, [doc.id]: error.message }));
+      return;
+    }
+    setMontantsEdites((m) => {
+      const copie = { ...m };
+      delete copie[doc.id];
+      return copie;
+    });
+    chargerDocuments();
+  }
+
+  async function enregistrerDate(doc) {
+    setEnregistrementEnCours(doc.id);
+    const valeur = dateAffichee(doc);
+    const date_document = valeur === '' ? null : valeur;
+    const { error } = await supabase.from('documents_moto').update({ date_document }).eq('id', doc.id);
+    setEnregistrementEnCours(null);
+    if (error) {
+      setErreursDocuments((e) => ({ ...e, [doc.id]: error.message }));
+      return;
+    }
+    setDatesEditees((d) => {
+      const copie = { ...d };
+      delete copie[doc.id];
+      return copie;
+    });
+    if (doc.type === 'carte_grise') {
+      await recalculerDateAchatDepuisCG();
+    }
+    chargerDocuments();
   }
 
   if (loading) return null;
@@ -236,6 +309,9 @@ export default function EditMoto() {
 
         <label htmlFor="modele">Modèle</label>
         <input id="modele" value={form.modele} onChange={(e) => update('modele', e.target.value)} required />
+
+        <label htmlFor="immatriculation">Immatriculation</label>
+        <input id="immatriculation" value={form.immatriculation || ''} onChange={(e) => update('immatriculation', e.target.value)} />
 
         <label htmlFor="annee">Année</label>
         <input id="annee" type="number" value={form.annee || ''} onChange={(e) => update('annee', e.target.value)} />
@@ -359,6 +435,29 @@ export default function EditMoto() {
             >
               {analyseGlobaleEnCours ? 'Analyse en cours...' : 'Analyser automatiquement les documents sans montant'}
             </button>
+            {Object.keys(montantsEdites).length > 0 && (
+              <button
+                type="button"
+                className="btn-primary btn"
+                style={{ width: '100%', marginTop: 10 }}
+                onClick={async () => {
+                  for (const docId of Object.keys(montantsEdites)) {
+                    const doc = documents.find((d) => d.id === docId);
+                    if (doc) await enregistrerMontant(doc);
+                  }
+                }}
+              >
+                Enregistrer tous les montants proposés ({Object.keys(montantsEdites).length})
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn"
+              style={{ width: '100%', marginTop: 10 }}
+              onClick={recalculerDateAchatDepuisCG}
+            >
+              Recalculer la date d'achat depuis la carte grise la plus récente
+            </button>
           </div>
 
           <div className="card">
@@ -388,25 +487,68 @@ export default function EditMoto() {
           </div>
 
           {documents.length === 0 && <p style={{ color: '#6b6a63' }}>Aucun document ajouté pour l'instant.</p>}
-          {documents.map((d) => (
-            <div key={d.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <p style={{ margin: '0 0 4px', fontWeight: 600 }}>{TYPES_DOCUMENTS[d.type] || 'Document'}</p>
-                <p style={{ margin: 0, color: '#6b6a63', fontSize: 14 }}>
-                  {d.nom_fichier}{d.montant != null ? ` · ${d.montant.toLocaleString('fr-FR')} €` : ''}
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {d.montant == null && (
-                  <button type="button" onClick={() => analyserDocument(d)} disabled={analyseEnCours === d.id}>
-                    {analyseEnCours === d.id ? 'Analyse...' : 'Analyser'}
+          {documents.map((d) => {
+            const modifie = montantsEdites[d.id] !== undefined;
+            const dateModifiee = datesEditees[d.id] !== undefined;
+            return (
+              <div key={d.id} className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div>
+                    <p style={{ margin: '0 0 4px', fontWeight: 600 }}>{TYPES_DOCUMENTS[d.type] || 'Document'}</p>
+                    <p style={{ margin: 0, color: '#6b6a63', fontSize: 14 }}>{d.nom_fichier}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={() => analyserDocument(d)} disabled={analyseEnCours === d.id}>
+                      {analyseEnCours === d.id ? 'Analyse...' : 'Analyser'}
+                    </button>
+                    <button type="button" onClick={() => voirDocument(d.chemin)}>Voir</button>
+                    <button type="button" onClick={() => supprimerDocument(d.id)}>Supprimer</button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Montant (€)"
+                    value={montantAffiche(d)}
+                    onChange={(e) => setMontantsEdites((m) => ({ ...m, [d.id]: e.target.value }))}
+                    style={{ marginBottom: 0, flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className={modifie ? 'btn-primary' : ''}
+                    onClick={() => enregistrerMontant(d)}
+                    disabled={!modifie || enregistrementEnCours === d.id}
+                  >
+                    {enregistrementEnCours === d.id ? 'Enregistrement...' : 'Enregistrer'}
                   </button>
+                </div>
+
+                {(d.type === 'carte_grise' || d.type === 'achat') && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                    <input
+                      type="date"
+                      value={dateAffichee(d)}
+                      onChange={(e) => setDatesEditees((dt) => ({ ...dt, [d.id]: e.target.value }))}
+                      style={{ marginBottom: 0, flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      className={dateModifiee ? 'btn-primary' : ''}
+                      onClick={() => enregistrerDate(d)}
+                      disabled={!dateModifiee || enregistrementEnCours === d.id}
+                    >
+                      {enregistrementEnCours === d.id ? 'Enregistrement...' : 'Enregistrer la date'}
+                    </button>
+                  </div>
                 )}
-                <button type="button" onClick={() => voirDocument(d.chemin)}>Voir</button>
-                <button type="button" onClick={() => supprimerDocument(d.id)}>Supprimer</button>
+                {erreursDocuments[d.id] && (
+                  <p style={{ color: '#8a1f1f', fontSize: 14, margin: '8px 0 0' }}>{erreursDocuments[d.id]}</p>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </>
       )}
     </div>
