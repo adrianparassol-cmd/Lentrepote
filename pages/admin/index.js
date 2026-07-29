@@ -33,6 +33,14 @@ export default function AdminIndex() {
     return prochain ? estEnRetard(prochain) : false;
   });
   const aEntretenir = motos.filter((m) => motosAvecNotes.has(m.id));
+  const nonVerifiees = motos.filter((m) => !m.verifie);
+
+  async function toggleVerifie(moto) {
+    const { error } = await supabase.from('motos').update({ verifie: !moto.verifie }).eq('id', moto.id);
+    if (!error) {
+      setMotos((liste) => liste.map((m) => (m.id === moto.id ? { ...m, verifie: !moto.verifie } : m)));
+    }
+  }
 
   return (
     <div className="page">
@@ -47,6 +55,12 @@ export default function AdminIndex() {
         <Link href="/admin/import" className="btn" style={{ display: 'inline-flex' }}>
           Import en masse
         </Link>
+      </div>
+
+      <div className="card">
+        <p style={{ margin: 0 }}>
+          <strong>{motos.length - nonVerifiees.length}</strong> vérifiée{motos.length - nonVerifiees.length > 1 ? 's' : ''} sur <strong>{motos.length}</strong> — {nonVerifiees.length} à vérifier
+        </p>
       </div>
 
       {besoinDeRouler.length > 0 && (
@@ -73,13 +87,20 @@ export default function AdminIndex() {
 
       <h2 style={{ marginTop: 20 }}>Toutes les motos</h2>
       {motos.map((m) => (
-        <Link key={m.id} href={`/admin/moto/${m.id}`} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', textDecoration: 'none', color: 'inherit' }}>
-          <div>
+        <div key={m.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Link href={`/admin/moto/${m.id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
             <p style={{ fontWeight: 600, margin: '0 0 4px' }}>{m.marque} {m.modele}</p>
             <p style={{ fontSize: 14, color: '#6b6a63', margin: 0 }}>{LABELS_ETAT[m.etat] || m.etat} · {m.kilometrage?.toLocaleString('fr-FR')} km</p>
-          </div>
-          <span>Modifier →</span>
-        </Link>
+          </Link>
+          <button
+            type="button"
+            className={m.verifie ? 'btn-primary' : ''}
+            onClick={() => toggleVerifie(m)}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {m.verifie ? '✓ Vérifiée' : 'À vérifier'}
+          </button>
+        </div>
       ))}
     </div>
   );

@@ -292,6 +292,11 @@ export default function EditMoto() {
     chargerDocuments();
   }
 
+  async function toggleVerifie() {
+    const { error } = await supabase.from('motos').update({ verifie: !form.verifie }).eq('id', id);
+    if (!error) setForm((f) => ({ ...f, verifie: !f.verifie }));
+  }
+
   if (loading) return null;
   if (!profile?.is_admin) return <div className="page"><p>Accès réservé à l'administrateur.</p></div>;
 
@@ -302,7 +307,14 @@ export default function EditMoto() {
   return (
     <div className="page" style={{ maxWidth: 480 }}>
       <NavBar isAdmin />
-      <h1>{estNouveau ? 'Ajouter une moto' : 'Modifier la fiche'}</h1>
+      <div className="top-bar">
+        <h1>{estNouveau ? 'Ajouter une moto' : 'Modifier la fiche'}</h1>
+        {!estNouveau && (
+          <button type="button" className={form.verifie ? 'btn-primary' : ''} onClick={toggleVerifie}>
+            {form.verifie ? '✓ Vérifiée' : 'À vérifier'}
+          </button>
+        )}
+      </div>
       <form onSubmit={handleSubmit}>
         <label htmlFor="marque">Marque</label>
         <input id="marque" value={form.marque} onChange={(e) => update('marque', e.target.value)} required />
