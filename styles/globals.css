@@ -152,6 +152,34 @@ label {
   justify-content: center;
 }
 
+.note-moyenne {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 14px 18px;
+  border-radius: 2px;
+  margin-bottom: 16px;
+}
+.note-moyenne-chiffre {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 32px;
+}
+.note-moyenne-sur10 {
+  font-family: 'Oswald', sans-serif;
+  font-size: 16px;
+  opacity: 0.8;
+}
+.note-moyenne-label {
+  margin-left: auto;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.8;
+}
+
 a { color: var(--ink); }
 
 .top-bar {

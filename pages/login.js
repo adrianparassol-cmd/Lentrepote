@@ -9,6 +9,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [messageRecup, setMessageRecup] = useState('');
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -21,6 +22,21 @@ export default function Login() {
       return;
     }
     router.replace('/recap');
+  }
+
+  async function handleMotDePasseOublie() {
+    setError('');
+    setMessageRecup('');
+    if (!email) {
+      setError('Renseigne ton email ci-dessus, puis clique à nouveau sur "Mot de passe oublié".');
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) {
+      setError(`Erreur : ${error.message}`);
+      return;
+    }
+    setMessageRecup("Un email vient de t'être envoyé pour choisir un nouveau mot de passe.");
   }
 
   return (
@@ -45,8 +61,16 @@ export default function Login() {
           required
         />
         {error && <p style={{ color: '#8a1f1f' }}>{error}</p>}
+        {messageRecup && <p style={{ color: '#1e5b1e' }}>{messageRecup}</p>}
         <button type="submit" className="btn-primary" style={{ width: '100%' }} disabled={loading}>
           {loading ? 'Connexion...' : 'Se connecter'}
+        </button>
+        <button
+          type="button"
+          onClick={handleMotDePasseOublie}
+          style={{ width: '100%', marginTop: 10, border: 'none' }}
+        >
+          Mot de passe oublié ?
         </button>
       </form>
     </div>

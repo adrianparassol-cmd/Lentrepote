@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../lib/useUser';
+import { compresserImage } from '../lib/image';
 
 export default function Retour() {
   const router = useRouter();
   const { sortieId } = router.query;
-  const { loading } = useUser();
+  const { profile, loading } = useUser();
   const [sortie, setSortie] = useState(null);
   const [moto, setMoto] = useState(null);
   const [km, setKm] = useState('');
   const [note, setNote] = useState(8);
   const [commentaire, setCommentaire] = useState('');
+  const [etatMoto, setEtatMoto] = useState('roulante');
   const [noteEntretien, setNoteEntretien] = useState('');
   const [photos, setPhotos] = useState([]);
   const [envoi, setEnvoi] = useState(false);
@@ -56,11 +58,22 @@ export default function Retour() {
     await supabase.from('motos').update({
       kilometrage: parseInt(km, 10),
       dernier_roulage: new Date().toISOString().slice(0, 10),
+      etat: etatMoto,
     }).eq('id', moto.id);
 
+    if (etatMoto === 'entretien' || noteEntretien.trim()) {
+      await supabase.from('entretien_notes').insert({
+        moto_id: moto.id,
+        contenu: noteEntretien.trim() || 'Signalée comme ayant besoin d\'entretien au retour, sans détail précisé.',
+        auteur: profile?.nom,
+        source: 'retour',
+      });
+    }
+
     for (const fichier of photos) {
-      const chemin = `sorties/${sortieId}-${Date.now()}-${fichier.name}`;
-      const { error: uploadError } = await supabase.storage.from('photos').upload(chemin, fichier);
+      const compressee = await compresserImage(fichier);
+      const chemin = `sorties/${sortieId}-${Date.now()}-${compressee.name}`;
+      const { error: uploadError } = await supabase.storage.from('photos').upload(chemin, compressee);
       if (!uploadError) {
         const { data: publicUrl } = supabase.storage.from('photos').getPublicUrl(chemin);
         await supabase.from('photos_sortie').insert({ sortie_id: sortieId, url: publicUrl.publicUrl });
@@ -106,7 +119,29 @@ export default function Retour() {
           onChange={(e) => setCommentaire(e.target.value)}
         />
 
-        <label htmlFor="entretien">Quelque chose à signaler pour l'entretien ? (facultatif)</label>
+        <label>La moto peut-elle encore rouler ?</label>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+          <button
+            type="button"
+            className={etatMoto === 'roulante' ? 'btn-primary' : ''}
+            style={{ flex: 1 }}
+            onClick={() => setEtatMoto('roulante')}
+          >
+            Oui, roulante
+          </button>
+          <button
+            type="button"
+            className={etatMoto === 'entretien' ? 'btn-primary' : ''}
+            style={{ flex: 1 }}
+            onClick={() => setEtatMoto('entretien')}
+          >
+            Besoin d'entretien
+          </button>
+        </div>
+
+        <label htmlFor="entretien">
+          {etatMoto === 'entretien' ? "Qu'est-ce qui a besoin d'être regardé ?" : "Quelque chose à signaler pour l'entretien ? (facultatif)"}
+        </label>
         <textarea
           id="entretien"
           rows={3}
