@@ -31,9 +31,14 @@ export default function AdminIndex() {
         <h1>Back-office motos</h1>
         <Link href="/recap">← Vue générale</Link>
       </div>
-      <Link href="/admin/moto/new" className="btn-primary btn" style={{ marginBottom: 20, display: 'inline-flex' }}>
-        Ajouter une moto
-      </Link>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+        <Link href="/admin/moto/new" className="btn-primary btn" style={{ display: 'inline-flex' }}>
+          Ajouter une moto
+        </Link>
+        <Link href="/admin/import" className="btn" style={{ display: 'inline-flex' }}>
+          Import en masse
+        </Link>
+      </div>
 
       {besoinDeRouler.length > 0 && (
         <>
