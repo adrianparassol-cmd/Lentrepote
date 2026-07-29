@@ -3,6 +3,14 @@ import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
 import { useUser } from '../../lib/useUser';
 import { ajouterMois, estEnRetard } from '../../lib/format';
+import NavBar from '../../components/NavBar';
+
+const LABELS_ETAT = {
+  roulante: 'Roulante',
+  entretien: "Besoin d'entretien",
+  restauration: 'Besoin de restauration',
+  non_roulante: 'Non roulante',
+};
 
 export default function AdminIndex() {
   const { profile, loading } = useUser();
@@ -20,6 +28,7 @@ export default function AdminIndex() {
   if (!profile?.is_admin) return <div className="page"><p>Accès réservé à l'administrateur.</p></div>;
 
   const besoinDeRouler = motos.filter((m) => {
+    if (m.etat !== 'roulante') return false;
     const prochain = m.dernier_roulage ? ajouterMois(m.dernier_roulage, 12) : null;
     return prochain ? estEnRetard(prochain) : false;
   });
@@ -27,9 +36,9 @@ export default function AdminIndex() {
 
   return (
     <div className="page">
+      <NavBar isAdmin />
       <div className="top-bar">
         <h1>Back-office motos</h1>
-        <Link href="/recap">← Vue générale</Link>
       </div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         <Link href="/admin/moto/new" className="btn-primary btn" style={{ display: 'inline-flex' }}>
@@ -67,7 +76,7 @@ export default function AdminIndex() {
         <Link key={m.id} href={`/admin/moto/${m.id}`} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', textDecoration: 'none', color: 'inherit' }}>
           <div>
             <p style={{ fontWeight: 600, margin: '0 0 4px' }}>{m.marque} {m.modele}</p>
-            <p style={{ fontSize: 14, color: '#6b6a63', margin: 0 }}>{m.etat} · {m.kilometrage?.toLocaleString('fr-FR')} km</p>
+            <p style={{ fontSize: 14, color: '#6b6a63', margin: 0 }}>{LABELS_ETAT[m.etat] || m.etat} · {m.kilometrage?.toLocaleString('fr-FR')} km</p>
           </div>
           <span>Modifier →</span>
         </Link>

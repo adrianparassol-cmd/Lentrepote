@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
 import { useUser } from '../../lib/useUser';
 import { formatDateFR, ajouterMois, estEnRetard } from '../../lib/format';
+import NavBar from '../../components/NavBar';
 
 export default function FicheMoto() {
   const router = useRouter();
@@ -63,9 +64,17 @@ export default function FicheMoto() {
   async function basculerListeEnvies() {
     if (!profile) return;
     if (dansListeEnvies) {
-      await supabase.from('souhaits').delete().eq('user_id', profile.id).eq('moto_id', id);
+      const { error } = await supabase.from('souhaits').delete().eq('user_id', profile.id).eq('moto_id', id);
+      if (error) {
+        alert(`Erreur lors du retrait : ${error.message}`);
+        return;
+      }
     } else {
-      await supabase.from('souhaits').insert({ user_id: profile.id, moto_id: id });
+      const { error } = await supabase.from('souhaits').insert({ user_id: profile.id, moto_id: id });
+      if (error) {
+        alert(`Erreur lors de l'ajout : ${error.message}`);
+        return;
+      }
     }
     setDansListeEnvies(!dansListeEnvies);
   }
@@ -107,6 +116,7 @@ export default function FicheMoto() {
 
   return (
     <div className="page">
+      <NavBar isAdmin={profile?.is_admin} />
       <Link href="/recap">← Retour à la liste</Link>
       <h1 style={{ marginTop: 12 }}>{moto.marque} {moto.modele}</h1>
 
@@ -114,6 +124,16 @@ export default function FicheMoto() {
         <img src={moto.photo_principale_url} alt="" className="photo-carree" style={{ marginBottom: 16 }} />
       ) : (
         <div className="photo-placeholder photo-carree" style={{ marginBottom: 16 }}>Pas de photo</div>
+      )}
+
+      {moto.etat !== 'roulante' && (
+        <p style={{ marginBottom: 12 }}>
+          <span className="badge badge-rouge">
+            {moto.etat === 'non_roulante' && 'Non roulante'}
+            {moto.etat === 'entretien' && "Besoin d'entretien"}
+            {moto.etat === 'restauration' && 'Besoin de restauration'}
+          </span>
+        </p>
       )}
 
       {moyenne && (

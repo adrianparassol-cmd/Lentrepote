@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
 import { useUser } from '../../lib/useUser';
 import { compresserImage } from '../../lib/image';
+import NavBar from '../../components/NavBar';
 
 function categoriser(nomFichier) {
   if (nomFichier.startsWith('.')) return null;
@@ -130,9 +130,9 @@ export default function ImportMasse() {
 
   return (
     <div className="page">
+      <NavBar isAdmin />
       <div className="top-bar">
         <h1>Import en masse</h1>
-        <Link href="/admin">← Back-office</Link>
       </div>
 
       <p style={{ color: '#6b6a63' }}>

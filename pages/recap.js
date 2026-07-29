@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../lib/useUser';
 import Masthead from '../components/Masthead';
+import NavBar from '../components/NavBar';
 import { ajouterMois, estEnRetard } from '../lib/format';
 
 export default function Recap() {
-  const router = useRouter();
   const { profile, loading } = useUser();
   const [motos, setMotos] = useState([]);
   const [sortiesEnCours, setSortiesEnCours] = useState([]);
@@ -26,11 +25,6 @@ export default function Recap() {
     load();
   }, []);
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    router.replace('/login');
-  }
-
   if (loading) return null;
 
   const filtered = motos.filter((m) => {
@@ -39,11 +33,13 @@ export default function Recap() {
   });
 
   const besoinDeRouler = motos.filter((m) => {
+    if (m.etat !== 'roulante') return false;
     const prochain = m.dernier_roulage ? ajouterMois(m.dernier_roulage, 12) : null;
     return prochain ? estEnRetard(prochain) : false;
   });
 
   function statutDe(moto) {
+    if (moto.etat === 'non_roulante') return { label: 'Non roulante', classe: 'badge-rouge' };
     if (moto.etat === 'restauration') return { label: 'À restaurer', classe: 'badge-rouge' };
     if (moto.etat === 'entretien') return { label: 'Entretien requis', classe: 'badge-rouge' };
     const sortie = sortiesEnCours.find((s) => s.moto_id === moto.id);
@@ -54,12 +50,9 @@ export default function Recap() {
   return (
     <div className="page">
       <Masthead />
+      <NavBar isAdmin={profile?.is_admin} />
       <div className="top-bar">
         <h1>Les motos</h1>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Link href="/profil" className="btn">Mon profil</Link>
-          <button onClick={handleLogout}>Se déconnecter</button>
-        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
@@ -69,11 +62,6 @@ export default function Recap() {
           onChange={(e) => setSearch(e.target.value)}
           style={{ marginBottom: 0 }}
         />
-        {profile?.is_admin && (
-          <Link href="/admin" className="btn" style={{ whiteSpace: 'nowrap' }}>
-            Back-office
-          </Link>
-        )}
       </div>
 
       {besoinDeRouler.length > 0 && (

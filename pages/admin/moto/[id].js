@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabaseClient';
 import { useUser } from '../../../lib/useUser';
 import { compresserImage } from '../../../lib/image';
 import { formatDateFR } from '../../../lib/format';
+import NavBar from '../../../components/NavBar';
 
 const vide = {
   marque: '', modele: '', annee: '', date_achat: '', kilometrage: '',
@@ -172,6 +173,52 @@ export default function EditMoto() {
     if (!error && data) window.open(data.signedUrl, '_blank');
   }
 
+  const [analyseEnCours, setAnalyseEnCours] = useState(null);
+  const [analyseGlobaleEnCours, setAnalyseGlobaleEnCours] = useState(false);
+
+  async function analyserDocument(doc) {
+    setAnalyseEnCours(doc.id);
+    try {
+      const res = await fetch('/api/analyser-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chemin: doc.chemin }),
+      });
+      const resultat = await res.json();
+      if (resultat.error) {
+        setError(`Erreur d'analyse (${doc.nom_fichier}) : ${resultat.error}`);
+        return;
+      }
+      if (resultat.montant != null) {
+        await supabase.from('documents_moto').update({ montant: resultat.montant }).eq('id', doc.id);
+      }
+      // Pré-remplit l'année / la date d'achat de la moto si elles sont encore vides
+      if (resultat.annee && !form.annee) {
+        await supabase.from('motos').update({ annee: resultat.annee }).eq('id', id);
+        setForm((f) => ({ ...f, annee: resultat.annee }));
+      }
+      if (resultat.type === 'achat' && resultat.date && !form.date_achat) {
+        await supabase.from('motos').update({ date_achat: resultat.date }).eq('id', id);
+        setForm((f) => ({ ...f, date_achat: resultat.date }));
+      }
+      await chargerDocuments();
+    } catch (err) {
+      setError(`Erreur d'analyse : ${err.message}`);
+    } finally {
+      setAnalyseEnCours(null);
+    }
+  }
+
+  async function analyserTousLesDocuments() {
+    setAnalyseGlobaleEnCours(true);
+    for (const doc of documents) {
+      if (doc.montant == null) {
+        await analyserDocument(doc);
+      }
+    }
+    setAnalyseGlobaleEnCours(false);
+  }
+
   if (loading) return null;
   if (!profile?.is_admin) return <div className="page"><p>Accès réservé à l'administrateur.</p></div>;
 
@@ -181,6 +228,7 @@ export default function EditMoto() {
 
   return (
     <div className="page" style={{ maxWidth: 480 }}>
+      <NavBar isAdmin />
       <h1>{estNouveau ? 'Ajouter une moto' : 'Modifier la fiche'}</h1>
       <form onSubmit={handleSubmit}>
         <label htmlFor="marque">Marque</label>
@@ -203,6 +251,7 @@ export default function EditMoto() {
           <option value="roulante">Roulante</option>
           <option value="entretien">Besoin d'entretien</option>
           <option value="restauration">Besoin de restauration</option>
+          <option value="non_roulante">Non roulante (pas destinée à rouler)</option>
         </select>
 
         <label htmlFor="dernier_roulage">Dernier roulage</label>
@@ -229,19 +278,41 @@ export default function EditMoto() {
       {!estNouveau && galerie.length > 0 && (
         <>
           <h2 style={{ marginTop: 28 }}>Photos</h2>
+          <p style={{ fontSize: 13, color: '#6b6a63', marginTop: -8 }}>
+            Clique sur une photo pour en faire la photo principale de la fiche.
+          </p>
           <div className="grid">
-            {galerie.map((p) => (
-              <div key={p.id}>
-                <img src={p.url} alt="" className="photo-carree" style={{ marginBottom: 6 }} />
-                {form.photo_principale_url === p.url ? (
-                  <span className="badge badge-vert">Photo principale</span>
-                ) : (
-                  <button type="button" onClick={() => definirPrincipale(p.url)} style={{ width: '100%', minHeight: 40 }}>
-                    Définir comme principale
-                  </button>
-                )}
-              </div>
-            ))}
+            {galerie.map((p) => {
+              const estPrincipale = form.photo_principale_url === p.url;
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => !estPrincipale && definirPrincipale(p.url)}
+                  style={{ position: 'relative', cursor: estPrincipale ? 'default' : 'pointer' }}
+                >
+                  <img
+                    src={p.url}
+                    alt=""
+                    className="photo-carree"
+                    style={{ outline: estPrincipale ? '3px solid var(--ink)' : 'none', outlineOffset: -3 }}
+                  />
+                  {estPrincipale && (
+                    <span
+                      style={{
+                        position: 'absolute', top: 6, right: 6,
+                        background: 'var(--ink)', color: 'var(--paper)',
+                        borderRadius: '50%', width: 26, height: 26,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 14,
+                      }}
+                      title="Photo principale"
+                    >
+                      ★
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </>
       )}
@@ -278,7 +349,16 @@ export default function EditMoto() {
           <div className="card">
             <p style={{ margin: '0 0 4px' }}><strong>Prix d'achat :</strong> {prixAchat.toLocaleString('fr-FR')} €</p>
             <p style={{ margin: '0 0 4px' }}><strong>Total des frais :</strong> {totalFrais.toLocaleString('fr-FR')} €</p>
-            <p style={{ margin: 0 }}><strong>Total général :</strong> {totalGeneral.toLocaleString('fr-FR')} €</p>
+            <p style={{ margin: '0 0 10px' }}><strong>Total général :</strong> {totalGeneral.toLocaleString('fr-FR')} €</p>
+            <button
+              type="button"
+              className="btn"
+              style={{ width: '100%' }}
+              onClick={analyserTousLesDocuments}
+              disabled={analyseGlobaleEnCours || documents.every((d) => d.montant != null)}
+            >
+              {analyseGlobaleEnCours ? 'Analyse en cours...' : 'Analyser automatiquement les documents sans montant'}
+            </button>
           </div>
 
           <div className="card">
@@ -317,6 +397,11 @@ export default function EditMoto() {
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
+                {d.montant == null && (
+                  <button type="button" onClick={() => analyserDocument(d)} disabled={analyseEnCours === d.id}>
+                    {analyseEnCours === d.id ? 'Analyse...' : 'Analyser'}
+                  </button>
+                )}
                 <button type="button" onClick={() => voirDocument(d.chemin)}>Voir</button>
                 <button type="button" onClick={() => supprimerDocument(d.id)}>Supprimer</button>
               </div>

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from '../lib/useUser';
 import Masthead from '../components/Masthead';
+import NavBar from '../components/NavBar';
 
 export default function Profil() {
   const { profile, loading } = useUser();
@@ -72,9 +73,9 @@ export default function Profil() {
   return (
     <div className="page">
       <Masthead />
+      <NavBar isAdmin={profile?.is_admin} />
       <div className="top-bar">
         <h1>{profile.nom}</h1>
-        <Link href="/recap">← Les motos</Link>
       </div>
 
       <div className="card">
