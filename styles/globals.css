@@ -127,6 +127,7 @@ label {
 .badge-vert { background: var(--vert-bg); color: var(--vert-fg); }
 .badge-orange { background: var(--orange-bg); color: var(--orange-fg); }
 .badge-rouge { background: var(--rouge-bg); color: var(--rouge-fg); }
+.badge-gris { background: #4a4944; color: #f3f2ed; }
 
 .photo-placeholder {
   height: 120px;

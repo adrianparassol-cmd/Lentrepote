@@ -39,7 +39,7 @@ export default function Recap() {
   });
 
   function statutDe(moto) {
-    if (moto.etat === 'non_roulante') return { label: 'Non roulante', classe: 'badge-rouge' };
+    if (moto.etat === 'non_roulante') return { label: 'Non roulante', classe: 'badge-gris' };
     if (moto.etat === 'restauration') return { label: 'À restaurer', classe: 'badge-rouge' };
     if (moto.etat === 'entretien') return { label: 'Entretien requis', classe: 'badge-rouge' };
     const sortie = sortiesEnCours.find((s) => s.moto_id === moto.id);

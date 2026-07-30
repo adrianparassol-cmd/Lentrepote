@@ -32,7 +32,7 @@ export default function AdminIndex() {
     const prochain = m.dernier_roulage ? ajouterMois(m.dernier_roulage, 12) : null;
     return prochain ? estEnRetard(prochain) : false;
   });
-  const aEntretenir = motos.filter((m) => motosAvecNotes.has(m.id));
+  const aEntretenir = motos.filter((m) => m.etat === 'entretien' || motosAvecNotes.has(m.id));
   const nonVerifiees = motos.filter((m) => !m.verifie);
 
   async function toggleVerifie(moto) {
@@ -79,7 +79,10 @@ export default function AdminIndex() {
           <h2 style={{ marginTop: 20 }}>Motos à entretenir</h2>
           {aEntretenir.map((m) => (
             <Link key={m.id} href={`/admin/moto/${m.id}`} className="card" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
-              <strong>{m.marque} {m.modele}</strong> <span className="badge badge-orange" style={{ marginLeft: 8 }}>Note(s) d'entretien en attente</span>
+              <strong>{m.marque} {m.modele}</strong>{' '}
+              <span className="badge badge-orange" style={{ marginLeft: 8 }}>
+                {motosAvecNotes.has(m.id) ? "Note(s) d'entretien en attente" : "Besoin d'entretien"}
+              </span>
             </Link>
           ))}
         </>

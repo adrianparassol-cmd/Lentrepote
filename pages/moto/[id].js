@@ -144,7 +144,7 @@ export default function FicheMoto() {
 
       {moto.etat !== 'roulante' && (
         <p style={{ marginBottom: 12 }}>
-          <span className="badge badge-rouge">
+          <span className={`badge ${moto.etat === 'non_roulante' ? 'badge-gris' : 'badge-rouge'}`}>
             {moto.etat === 'non_roulante' && 'Non roulante'}
             {moto.etat === 'entretien' && "Besoin d'entretien"}
             {moto.etat === 'restauration' && 'Besoin de restauration'}
@@ -160,7 +160,7 @@ export default function FicheMoto() {
         </div>
       )}
 
-      {profile && (
+      {profile && moto.etat !== 'non_roulante' && (
         <button
           type="button"
           onClick={basculerListeEnvies}
