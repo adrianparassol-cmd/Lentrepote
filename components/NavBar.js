@@ -24,7 +24,7 @@ export default function NavBar({ isAdmin }) {
     >
       <Link href="/recap">Accueil</Link>
       <Link href="/profil">Mon profil</Link>
-      {isAdmin && <Link href="/admin">Back-office</Link>}
+      {isAdmin && <Link href="/admin" className="admin-highlight">Gestion</Link>}
       <button onClick={handleLogout} style={{ marginLeft: 'auto', minHeight: 40 }}>
         Déconnexion
       </button>

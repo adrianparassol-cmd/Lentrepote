@@ -18,13 +18,25 @@ export default function AdminIndex() {
   const [motosAvecNotes, setMotosAvecNotes] = useState(new Set());
   const [sauvegardeEnCours, setSauvegardeEnCours] = useState(false);
   const [erreurSauvegarde, setErreurSauvegarde] = useState('');
+  const [derniereSauvegarde, setDerniereSauvegarde] = useState(null);
 
   useEffect(() => {
     supabase.from('motos').select('*').order('marque').then(({ data }) => setMotos(data || []));
     supabase.from('entretien_notes').select('moto_id').then(({ data }) => {
       setMotosAvecNotes(new Set((data || []).map((n) => n.moto_id)));
     });
+    chargerDerniereSauvegarde();
   }, []);
+
+  async function chargerDerniereSauvegarde() {
+    const { data } = await supabase
+      .from('sauvegardes_log')
+      .select('*, profiles(nom)')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setDerniereSauvegarde(data || null);
+  }
 
   if (loading) return null;
   if (!profile?.is_admin) return <div className="page"><p>Accès réservé à l'administrateur.</p></div>;
@@ -65,6 +77,8 @@ export default function AdminIndex() {
       lien.download = `documents-motos-${new Date().toISOString().slice(0, 10)}.zip`;
       lien.click();
       URL.revokeObjectURL(url);
+      await supabase.from('sauvegardes_log').insert({ user_id: session.user.id });
+      chargerDerniereSauvegarde();
     } catch (err) {
       setErreurSauvegarde(err.message);
     } finally {
@@ -78,17 +92,19 @@ export default function AdminIndex() {
       <div className="top-bar">
         <h1>Gestion des motos</h1>
       </div>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
         <Link href="/admin/moto/new" className="btn-primary btn" style={{ display: 'inline-flex' }}>
           Ajouter une moto
-        </Link>
-        <Link href="/admin/import" className="btn" style={{ display: 'inline-flex' }}>
-          Import en masse
         </Link>
         <button type="button" onClick={telechargerSauvegarde} disabled={sauvegardeEnCours}>
           {sauvegardeEnCours ? 'Préparation du zip...' : 'Télécharger une sauvegarde des documents'}
         </button>
       </div>
+      {derniereSauvegarde && (
+        <p style={{ fontSize: 13, color: '#6b6a63', marginBottom: 20 }}>
+          Dernière sauvegarde : {new Date(derniereSauvegarde.created_at).toLocaleDateString('fr-FR')} à {new Date(derniereSauvegarde.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} par {derniereSauvegarde.profiles?.nom || 'quelqu\'un'}
+        </p>
+      )}
       {erreurSauvegarde && <p style={{ color: '#8a1f1f', marginBottom: 20 }}>{erreurSauvegarde}</p>}
 
       <div className="card">

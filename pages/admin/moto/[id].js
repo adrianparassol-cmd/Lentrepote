@@ -178,15 +178,10 @@ export default function EditMoto() {
   const [montantsEdites, setMontantsEdites] = useState({});
   const [erreursDocuments, setErreursDocuments] = useState({});
   const [enregistrementEnCours, setEnregistrementEnCours] = useState(null);
-  const [datesEditees, setDatesEditees] = useState({});
   const [nomsEdites, setNomsEdites] = useState({});
 
   function montantAffiche(doc) {
     return montantsEdites[doc.id] !== undefined ? montantsEdites[doc.id] : (doc.montant ?? '');
-  }
-
-  function dateAffichee(doc) {
-    return datesEditees[doc.id] !== undefined ? datesEditees[doc.id] : (doc.date_document ?? '');
   }
 
   async function recalculerDateAchatDepuisCG() {
@@ -223,7 +218,11 @@ export default function EditMoto() {
         setMontantsEdites((m) => ({ ...m, [doc.id]: resultat.montant }));
       }
       if (resultat.date != null && (doc.type === 'achat' || doc.type === 'carte_grise')) {
-        setDatesEditees((d) => ({ ...d, [doc.id]: resultat.date }));
+        await supabase.from('documents_moto').update({ date_document: resultat.date }).eq('id', doc.id);
+        if (doc.type === 'carte_grise') {
+          await recalculerDateAchatDepuisCG();
+        }
+        chargerDocuments();
       }
       if (resultat.montant == null && resultat.date == null) {
         setErreursDocuments((e) => ({ ...e, [doc.id]: "Rien d'exploitable trouvé sur ce document — à compléter à la main si besoin." }));
@@ -269,27 +268,6 @@ export default function EditMoto() {
       delete copie[doc.id];
       return copie;
     });
-    chargerDocuments();
-  }
-
-  async function enregistrerDate(doc) {
-    setEnregistrementEnCours(doc.id);
-    const valeur = dateAffichee(doc);
-    const date_document = valeur === '' ? null : valeur;
-    const { error } = await supabase.from('documents_moto').update({ date_document }).eq('id', doc.id);
-    setEnregistrementEnCours(null);
-    if (error) {
-      setErreursDocuments((e) => ({ ...e, [doc.id]: error.message }));
-      return;
-    }
-    setDatesEditees((d) => {
-      const copie = { ...d };
-      delete copie[doc.id];
-      return copie;
-    });
-    if (doc.type === 'carte_grise') {
-      await recalculerDateAchatDepuisCG();
-    }
     chargerDocuments();
   }
 
@@ -363,15 +341,6 @@ export default function EditMoto() {
           </button>
         )}
       </div>
-      {!estNouveau && (
-        <button
-          type="button"
-          onClick={supprimerMoto}
-          style={{ width: '100%', marginBottom: 20, borderColor: '#8a1f1f', color: '#8a1f1f' }}
-        >
-          Supprimer cette moto
-        </button>
-      )}
       <form onSubmit={handleSubmit}>
         <label htmlFor="marque">Marque</label>
         <input id="marque" value={form.marque} onChange={(e) => update('marque', e.target.value)} required />
@@ -543,6 +512,7 @@ export default function EditMoto() {
             </button>
           </div>
 
+          <h2 style={{ marginTop: 28 }}>Ajouter un document</h2>
           <div className="card">
             <label htmlFor="type_document">Type de document</label>
             <select id="type_document" value={typeDocument} onChange={(e) => setTypeDocument(e.target.value)}>
@@ -569,38 +539,28 @@ export default function EditMoto() {
             </button>
           </div>
 
+          <h2 style={{ marginTop: 28 }}>Documents enregistrés</h2>
           {documents.length === 0 && <p style={{ color: '#6b6a63' }}>Aucun document ajouté pour l'instant.</p>}
           {documents.map((d) => {
             const modifie = montantsEdites[d.id] !== undefined;
-            const dateModifiee = datesEditees[d.id] !== undefined;
             return (
               <div key={d.id} className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <div style={{ flex: 1, marginRight: 10 }}>
-                    <p style={{ margin: '0 0 4px', fontWeight: 600 }}>{TYPES_DOCUMENTS[d.type] || 'Document'}</p>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input
-                        value={nomsEdites[d.id] !== undefined ? nomsEdites[d.id] : d.nom_fichier}
-                        onChange={(e) => setNomsEdites((n) => ({ ...n, [d.id]: e.target.value }))}
-                        style={{ marginBottom: 0, fontSize: 14, minHeight: 38 }}
-                      />
-                      {nomsEdites[d.id] !== undefined && nomsEdites[d.id] !== d.nom_fichier && (
-                        <button type="button" onClick={() => renommerDocument(d, nomsEdites[d.id])} style={{ minHeight: 38, whiteSpace: 'nowrap' }}>
-                          Renommer
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="button" onClick={() => analyserDocument(d)} disabled={analyseEnCours === d.id}>
-                      {analyseEnCours === d.id ? 'Analyse...' : 'Analyser'}
+                <p style={{ margin: '0 0 4px', fontWeight: 600 }}>{TYPES_DOCUMENTS[d.type] || 'Document'}</p>
+
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
+                  <input
+                    value={nomsEdites[d.id] !== undefined ? nomsEdites[d.id] : d.nom_fichier}
+                    onChange={(e) => setNomsEdites((n) => ({ ...n, [d.id]: e.target.value }))}
+                    style={{ marginBottom: 0, fontSize: 14, flex: 1 }}
+                  />
+                  {nomsEdites[d.id] !== undefined && nomsEdites[d.id] !== d.nom_fichier && (
+                    <button type="button" onClick={() => renommerDocument(d, nomsEdites[d.id])} style={{ whiteSpace: 'nowrap' }}>
+                      Renommer
                     </button>
-                    <button type="button" onClick={() => voirDocument(d.chemin)}>Voir</button>
-                    <button type="button" onClick={() => supprimerDocument(d.id)}>Supprimer</button>
-                  </div>
+                  )}
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
                   <input
                     type="number"
                     step="0.01"
@@ -619,24 +579,14 @@ export default function EditMoto() {
                   </button>
                 </div>
 
-                {(d.type === 'carte_grise' || d.type === 'achat') && (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-                    <input
-                      type="date"
-                      value={dateAffichee(d)}
-                      onChange={(e) => setDatesEditees((dt) => ({ ...dt, [d.id]: e.target.value }))}
-                      style={{ marginBottom: 0, flex: 1 }}
-                    />
-                    <button
-                      type="button"
-                      className={dateModifiee ? 'btn-primary' : ''}
-                      onClick={() => enregistrerDate(d)}
-                      disabled={!dateModifiee || enregistrementEnCours === d.id}
-                    >
-                      {enregistrementEnCours === d.id ? 'Enregistrement...' : 'Enregistrer la date'}
-                    </button>
-                  </div>
-                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" style={{ flex: 1 }} onClick={() => analyserDocument(d)} disabled={analyseEnCours === d.id}>
+                    {analyseEnCours === d.id ? 'Analyse...' : 'Analyser'}
+                  </button>
+                  <button type="button" style={{ flex: 1 }} onClick={() => voirDocument(d.chemin)}>Voir</button>
+                  <button type="button" style={{ flex: 1 }} onClick={() => supprimerDocument(d.id)}>Supprimer</button>
+                </div>
+
                 {erreursDocuments[d.id] && (
                   <p style={{ color: '#8a1f1f', fontSize: 14, margin: '8px 0 0' }}>{erreursDocuments[d.id]}</p>
                 )}
@@ -644,6 +594,16 @@ export default function EditMoto() {
             );
           })}
         </>
+      )}
+
+      {!estNouveau && (
+        <button
+          type="button"
+          onClick={supprimerMoto}
+          style={{ width: '100%', marginTop: 40, marginBottom: 20, borderColor: '#8a1f1f', color: '#8a1f1f' }}
+        >
+          Supprimer cette moto
+        </button>
       )}
     </div>
   );
