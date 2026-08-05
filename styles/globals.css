@@ -129,6 +129,12 @@ label {
 .badge-rouge { background: var(--rouge-bg); color: var(--rouge-fg); }
 .badge-gris { background: #4a4944; color: #f3f2ed; }
 
+.admin-highlight {
+  background: #f7dd63;
+  border-color: #111110 !important;
+  color: var(--ink) !important;
+}
+
 .photo-placeholder {
   height: 120px;
   border-radius: 2px;

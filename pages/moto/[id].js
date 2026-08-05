@@ -191,7 +191,7 @@ export default function FicheMoto() {
       )}
 
       {profile?.is_admin && (
-        <Link href={`/admin/moto/${moto.id}`} className="btn" style={{ marginBottom: 14, display: 'inline-flex' }}>
+        <Link href={`/admin/moto/${moto.id}`} className="btn admin-highlight" style={{ marginBottom: 14, display: 'inline-flex' }}>
           Modifier la fiche
         </Link>
       )}

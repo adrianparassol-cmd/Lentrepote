@@ -16,6 +16,8 @@ export default function AdminIndex() {
   const { profile, loading } = useUser();
   const [motos, setMotos] = useState([]);
   const [motosAvecNotes, setMotosAvecNotes] = useState(new Set());
+  const [sauvegardeEnCours, setSauvegardeEnCours] = useState(false);
+  const [erreurSauvegarde, setErreurSauvegarde] = useState('');
 
   useEffect(() => {
     supabase.from('motos').select('*').order('marque').then(({ data }) => setMotos(data || []));
@@ -42,20 +44,52 @@ export default function AdminIndex() {
     }
   }
 
+  async function telechargerSauvegarde() {
+    setSauvegardeEnCours(true);
+    setErreurSauvegarde('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/backup-documents', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setErreurSauvegarde(data.error || `Erreur (${res.status})`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const lien = document.createElement('a');
+      lien.href = url;
+      lien.download = `documents-motos-${new Date().toISOString().slice(0, 10)}.zip`;
+      lien.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setErreurSauvegarde(err.message);
+    } finally {
+      setSauvegardeEnCours(false);
+    }
+  }
+
   return (
     <div className="page">
       <NavBar isAdmin />
       <div className="top-bar">
-        <h1>Back-office motos</h1>
+        <h1>Gestion des motos</h1>
       </div>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
         <Link href="/admin/moto/new" className="btn-primary btn" style={{ display: 'inline-flex' }}>
           Ajouter une moto
         </Link>
         <Link href="/admin/import" className="btn" style={{ display: 'inline-flex' }}>
           Import en masse
         </Link>
+        <button type="button" onClick={telechargerSauvegarde} disabled={sauvegardeEnCours}>
+          {sauvegardeEnCours ? 'Préparation du zip...' : 'Télécharger une sauvegarde des documents'}
+        </button>
       </div>
+      {erreurSauvegarde && <p style={{ color: '#8a1f1f', marginBottom: 20 }}>{erreurSauvegarde}</p>}
 
       <div className="card">
         <p style={{ margin: 0 }}>

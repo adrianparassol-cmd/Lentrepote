@@ -179,6 +179,7 @@ export default function EditMoto() {
   const [erreursDocuments, setErreursDocuments] = useState({});
   const [enregistrementEnCours, setEnregistrementEnCours] = useState(null);
   const [datesEditees, setDatesEditees] = useState({});
+  const [nomsEdites, setNomsEdites] = useState({});
 
   function montantAffiche(doc) {
     return montantsEdites[doc.id] !== undefined ? montantsEdites[doc.id] : (doc.montant ?? '');
@@ -297,6 +298,53 @@ export default function EditMoto() {
     if (!error) setForm((f) => ({ ...f, verifie: !f.verifie }));
   }
 
+  async function supprimerMoto() {
+    const confirmation = window.confirm(
+      `Supprimer définitivement ${form.marque} ${form.modele} ? Son historique de sorties, ses notes et ses documents seront aussi supprimés. Cette action est irréversible.`
+    );
+    if (!confirmation) return;
+    const { error } = await supabase.from('motos').delete().eq('id', id);
+    if (error) {
+      setError(`Erreur lors de la suppression : ${error.message}`);
+      return;
+    }
+    router.replace('/admin');
+  }
+
+  function cheminDepuisUrlPhoto(url) {
+    const marqueur = '/photos/';
+    const index = url.indexOf(marqueur);
+    return index === -1 ? null : url.slice(index + marqueur.length);
+  }
+
+  async function supprimerPhoto(photo) {
+    const confirmation = window.confirm('Supprimer cette photo ?');
+    if (!confirmation) return;
+    const chemin = cheminDepuisUrlPhoto(photo.url);
+    if (chemin) {
+      await supabase.storage.from('photos').remove([chemin]);
+    }
+    await supabase.from('photos_moto').delete().eq('id', photo.id);
+    if (form.photo_principale_url === photo.url) {
+      const restantes = galerie.filter((p) => p.id !== photo.id);
+      const nouvellePrincipale = restantes[0]?.url || null;
+      await supabase.from('motos').update({ photo_principale_url: nouvellePrincipale }).eq('id', id);
+      setForm((f) => ({ ...f, photo_principale_url: nouvellePrincipale }));
+    }
+    chargerGalerie();
+  }
+
+  async function renommerDocument(doc, nouveauNom) {
+    if (!nouveauNom.trim() || nouveauNom === doc.nom_fichier) return;
+    await supabase.from('documents_moto').update({ nom_fichier: nouveauNom.trim() }).eq('id', doc.id);
+    setNomsEdites((n) => {
+      const copie = { ...n };
+      delete copie[doc.id];
+      return copie;
+    });
+    chargerDocuments();
+  }
+
   if (loading) return null;
   if (!profile?.is_admin) return <div className="page"><p>Accès réservé à l'administrateur.</p></div>;
 
@@ -315,6 +363,15 @@ export default function EditMoto() {
           </button>
         )}
       </div>
+      {!estNouveau && (
+        <button
+          type="button"
+          onClick={supprimerMoto}
+          style={{ width: '100%', marginBottom: 20, borderColor: '#8a1f1f', color: '#8a1f1f' }}
+        >
+          Supprimer cette moto
+        </button>
+      )}
       <form onSubmit={handleSubmit}>
         <label htmlFor="marque">Marque</label>
         <input id="marque" value={form.marque} onChange={(e) => update('marque', e.target.value)} required />
@@ -398,6 +455,20 @@ export default function EditMoto() {
                       ★
                     </span>
                   )}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); supprimerPhoto(p); }}
+                    style={{
+                      position: 'absolute', top: 6, left: 6,
+                      minHeight: 26, width: 26, padding: 0,
+                      borderRadius: '50%', background: 'var(--paper)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 14, lineHeight: 1,
+                    }}
+                    title="Supprimer cette photo"
+                  >
+                    ×
+                  </button>
                 </div>
               );
             })}
@@ -505,9 +576,20 @@ export default function EditMoto() {
             return (
               <div key={d.id} className="card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <div>
+                  <div style={{ flex: 1, marginRight: 10 }}>
                     <p style={{ margin: '0 0 4px', fontWeight: 600 }}>{TYPES_DOCUMENTS[d.type] || 'Document'}</p>
-                    <p style={{ margin: 0, color: '#6b6a63', fontSize: 14 }}>{d.nom_fichier}</p>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        value={nomsEdites[d.id] !== undefined ? nomsEdites[d.id] : d.nom_fichier}
+                        onChange={(e) => setNomsEdites((n) => ({ ...n, [d.id]: e.target.value }))}
+                        style={{ marginBottom: 0, fontSize: 14, minHeight: 38 }}
+                      />
+                      {nomsEdites[d.id] !== undefined && nomsEdites[d.id] !== d.nom_fichier && (
+                        <button type="button" onClick={() => renommerDocument(d, nomsEdites[d.id])} style={{ minHeight: 38, whiteSpace: 'nowrap' }}>
+                          Renommer
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button type="button" onClick={() => analyserDocument(d)} disabled={analyseEnCours === d.id}>
