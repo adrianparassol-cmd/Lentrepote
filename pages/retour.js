@@ -73,7 +73,7 @@ export default function Retour() {
     for (const fichier of photos) {
       const compressee = await compresserImage(fichier);
       const chemin = `sorties/${sortieId}-${Date.now()}-${compressee.name}`;
-      const { error: uploadError } = await supabase.storage.from('photos').upload(chemin, compressee);
+      const { error: uploadError } = await supabase.storage.from('photos').upload(chemin, compressee, { contentType: 'image/jpeg' });
       if (!uploadError) {
         const { data: publicUrl } = supabase.storage.from('photos').getPublicUrl(chemin);
         await supabase.from('photos_sortie').insert({ sortie_id: sortieId, url: publicUrl.publicUrl });

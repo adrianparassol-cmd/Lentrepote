@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { supabase } from '../../../lib/supabaseClient';
 import { useUser } from '../../../lib/useUser';
 import { compresserImage } from '../../../lib/image';
+import { convertirHeicSiNecessaire } from '../../../lib/heic';
 import { formatDateFR } from '../../../lib/format';
 import NavBar from '../../../components/NavBar';
 
@@ -135,7 +136,7 @@ export default function EditMoto() {
     for (const fichier of nouvellesPhotos) {
       const compressee = await compresserImage(fichier);
       const chemin = `motos/galerie/${motoId}-${Date.now()}-${compressee.name}`;
-      const { error: uploadError } = await supabase.storage.from('photos').upload(chemin, compressee);
+      const { error: uploadError } = await supabase.storage.from('photos').upload(chemin, compressee, { contentType: 'image/jpeg' });
       if (!uploadError) {
         const { data: publicUrl } = supabase.storage.from('photos').getPublicUrl(chemin);
         dernierePhotoUrl = publicUrl.publicUrl;
@@ -184,14 +185,17 @@ export default function EditMoto() {
     let nomFichier = nomDocumentManuel.trim() || TYPES_DOCUMENTS[typeDocument];
 
     if (fichierDocument) {
-      chemin = `${id}/${Date.now()}-${fichierDocument.name}`;
-      const { error: uploadError } = await supabase.storage.from('documents').upload(chemin, fichierDocument);
+      const fichierPret = await convertirHeicSiNecessaire(fichierDocument);
+      chemin = `${id}/${Date.now()}-${fichierPret.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(chemin, fichierPret, { contentType: fichierPret.type || 'application/octet-stream' });
       if (uploadError) {
         setError(`Erreur : ${uploadError.message}`);
         setEnvoiDocument(false);
         return;
       }
-      nomFichier = nomDocumentManuel.trim() || fichierDocument.name;
+      nomFichier = nomDocumentManuel.trim() || fichierPret.name;
     }
 
     await supabase.from('documents_moto').insert({
@@ -526,7 +530,7 @@ export default function EditMoto() {
 
       {!estNouveau && (
         <>
-          <h2 style={{ marginTop: 28 }}>Factures et frais</h2>
+          <h2 style={{ marginTop: 28 }}>Récapitulatif des frais</h2>
           <div className="card">
             <p style={{ margin: '0 0 4px' }}><strong>Prix d'achat (brut) :</strong> {prixAchatBrut.toLocaleString('fr-FR')} €</p>
             <p style={{ margin: '0 0 4px' }}><strong>Frais d'achat :</strong> {fraisAchat.toLocaleString('fr-FR')} €</p>
@@ -556,17 +560,9 @@ export default function EditMoto() {
                 Enregistrer tous les montants proposés ({Object.keys(montantsEdites).length})
               </button>
             )}
-            <button
-              type="button"
-              className="btn"
-              style={{ width: '100%', marginTop: 10 }}
-              onClick={recalculerDateAchatDepuisCG}
-            >
-              Recalculer la date d'achat depuis la carte grise la plus récente
-            </button>
           </div>
 
-          <h2 style={{ marginTop: 28 }}>Ajouter un document</h2>
+          <h2 style={{ marginTop: 28 }}>Ajouter un document/frais</h2>
           <div className="card">
             <label htmlFor="type_document">Type</label>
             <select id="type_document" value={typeDocument} onChange={(e) => setTypeDocument(e.target.value)}>

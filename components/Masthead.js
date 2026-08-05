@@ -2,7 +2,7 @@ export default function Masthead() {
   return (
     <div className="masthead">
       <div className="badge-logo">
-        <span>L'ENTRE<br />POTE</span>
+        <span>L'ENTRE<br />POTES</span>
       </div>
       <div className="damier" />
     </div>

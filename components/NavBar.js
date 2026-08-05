@@ -22,7 +22,7 @@ export default function NavBar({ isAdmin }) {
         borderBottom: '1px solid var(--gris)',
       }}
     >
-      <Link href="/recap">Accueil</Link>
+      <Link href="/recap">L'Entrepotes</Link>
       <Link href="/profil">Mon profil</Link>
       {isAdmin && <Link href="/admin" className="admin-highlight">Gestion</Link>}
       <button onClick={handleLogout} style={{ marginLeft: 'auto', minHeight: 40 }}>
