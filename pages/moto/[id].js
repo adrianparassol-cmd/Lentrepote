@@ -17,6 +17,7 @@ export default function FicheMoto() {
   const [photosParSortie, setPhotosParSortie] = useState({});
   const [dansListeEnvies, setDansListeEnvies] = useState(false);
   const [carteGrise, setCarteGrise] = useState(null);
+  const [indexAgrandi, setIndexAgrandi] = useState(null);
 
   useEffect(() => {
     if (!id) return;
@@ -130,6 +131,24 @@ export default function FicheMoto() {
     })),
   ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
+  // Toutes les photos affichables en plein écran, photo principale en premier
+  const toutesLesPhotos = [
+    ...(moto.photo_principale_url ? [{ id: 'principale', url: moto.photo_principale_url, legende: null }] : []),
+    ...galerieFusionnee,
+  ];
+
+  function fermerAgrandissement() {
+    setIndexAgrandi(null);
+  }
+  function photoSuivante(e) {
+    e.stopPropagation();
+    setIndexAgrandi((i) => (i + 1) % toutesLesPhotos.length);
+  }
+  function photoPrecedente(e) {
+    e.stopPropagation();
+    setIndexAgrandi((i) => (i - 1 + toutesLesPhotos.length) % toutesLesPhotos.length);
+  }
+
   return (
     <div className="page">
       <NavBar isAdmin={profile?.is_admin} />
@@ -137,7 +156,13 @@ export default function FicheMoto() {
       <h1 style={{ marginTop: 12 }}>{moto.marque} {moto.modele}</h1>
 
       {moto.photo_principale_url ? (
-        <img src={moto.photo_principale_url} alt="" className="photo-carree" style={{ marginBottom: 16 }} />
+        <img
+          src={moto.photo_principale_url}
+          alt=""
+          className="photo-carree"
+          style={{ marginBottom: 16, cursor: 'pointer' }}
+          onClick={() => setIndexAgrandi(0)}
+        />
       ) : (
         <div className="photo-placeholder photo-carree" style={{ marginBottom: 16 }}>Pas de photo</div>
       )}
@@ -213,7 +238,13 @@ export default function FicheMoto() {
           <div className="grid" style={{ marginBottom: 20 }}>
             {galerieFusionnee.map((p) => (
               <div key={p.id}>
-                <img src={p.url} alt="" className="photo-carree" />
+                <img
+                  src={p.url}
+                  alt=""
+                  className="photo-carree"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setIndexAgrandi(toutesLesPhotos.findIndex((x) => x.id === p.id))}
+                />
                 {p.legende && <p style={{ fontSize: 12, color: '#6b6a63', margin: '4px 0 0' }}>{p.legende}</p>}
               </div>
             ))}
@@ -254,6 +285,60 @@ export default function FicheMoto() {
           </div>
         );
       })}
+
+      {indexAgrandi !== null && toutesLesPhotos[indexAgrandi] && (
+        <div
+          onClick={fermerAgrandissement}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(17,17,16,0.95)', zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}
+        >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); fermerAgrandissement(); }}
+            style={{
+              position: 'fixed', top: 16, right: 16, background: 'var(--paper)',
+              border: '2px solid var(--paper)', minHeight: 44, minWidth: 44,
+            }}
+          >
+            Fermer
+          </button>
+
+          {toutesLesPhotos.length > 1 && (
+            <button
+              type="button"
+              onClick={photoPrecedente}
+              style={{ position: 'fixed', left: 12, top: '50%', transform: 'translateY(-50%)', background: 'var(--paper)', minHeight: 48, minWidth: 48 }}
+            >
+              ←
+            </button>
+          )}
+
+          <img
+            src={toutesLesPhotos[indexAgrandi].url}
+            alt=""
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain' }}
+          />
+
+          {toutesLesPhotos.length > 1 && (
+            <button
+              type="button"
+              onClick={photoSuivante}
+              style={{ position: 'fixed', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'var(--paper)', minHeight: 48, minWidth: 48 }}
+            >
+              →
+            </button>
+          )}
+
+          {toutesLesPhotos[indexAgrandi].legende && (
+            <p style={{ position: 'fixed', bottom: 20, color: 'var(--paper)', fontSize: 14 }}>
+              {toutesLesPhotos[indexAgrandi].legende}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

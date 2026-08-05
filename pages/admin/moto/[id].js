@@ -13,6 +13,7 @@ const vide = {
 
 const TYPES_DOCUMENTS = {
   achat: "Facture d'achat",
+  frais_achat: "Frais d'achat (sans facture)",
   entretien: "Facture d'entretien",
   carte_grise: 'Carte grise',
   autre: 'Autre document',
@@ -37,8 +38,10 @@ export default function EditMoto() {
   const [notesEntretien, setNotesEntretien] = useState([]);
   const [nouvelleNote, setNouvelleNote] = useState('');
   const [documents, setDocuments] = useState([]);
+  const [apercus, setApercus] = useState({});
   const [typeDocument, setTypeDocument] = useState('achat');
   const [montantDocument, setMontantDocument] = useState('');
+  const [nomDocumentManuel, setNomDocumentManuel] = useState('');
   const [fichierDocument, setFichierDocument] = useState(null);
   const [envoi, setEnvoi] = useState(false);
   const [envoiDocument, setEnvoiDocument] = useState(false);
@@ -64,9 +67,38 @@ export default function EditMoto() {
     setNotesEntretien(data || []);
   }
 
+  function estImage(nomFichier) {
+    return /\.(jpe?g|png|heic|webp)$/i.test(nomFichier || '');
+  }
+
+  async function genererApercuPdf(url) {
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument(url).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 0.35 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    return canvas.toDataURL('image/jpeg', 0.7);
+  }
+
   async function chargerDocuments() {
     const { data } = await supabase.from('documents_moto').select('*').eq('moto_id', id).order('created_at', { ascending: false });
     setDocuments(data || []);
+    for (const doc of data || []) {
+      if (!doc.chemin || apercus[doc.id]) continue;
+      const { data: signee } = await supabase.storage.from('documents').createSignedUrl(doc.chemin, 3600);
+      if (!signee) continue;
+      if (estImage(doc.nom_fichier)) {
+        setApercus((a) => ({ ...a, [doc.id]: signee.signedUrl }));
+      } else {
+        genererApercuPdf(signee.signedUrl)
+          .then((dataUrl) => setApercus((a) => ({ ...a, [doc.id]: dataUrl })))
+          .catch(() => {}); // pas grave si l'aperçu échoue, le pictogramme reste affiché
+      }
+    }
   }
 
   function update(champ, valeur) {
@@ -144,27 +176,47 @@ export default function EditMoto() {
 
   async function handleAjoutDocument(e) {
     e.preventDefault();
-    if (!fichierDocument || estNouveau) return;
+    if (estNouveau) return;
+    if (!fichierDocument && !montantDocument && !nomDocumentManuel.trim()) return;
     setEnvoiDocument(true);
-    const chemin = `${id}/${Date.now()}-${fichierDocument.name}`;
-    const { error: uploadError } = await supabase.storage.from('documents').upload(chemin, fichierDocument);
-    if (!uploadError) {
-      await supabase.from('documents_moto').insert({
-        moto_id: id,
-        type: typeDocument,
-        chemin,
-        nom_fichier: fichierDocument.name,
-        montant: montantDocument ? parseFloat(montantDocument) : null,
-      });
-      setFichierDocument(null);
-      setMontantDocument('');
-      await chargerDocuments();
+
+    let chemin = null;
+    let nomFichier = nomDocumentManuel.trim() || TYPES_DOCUMENTS[typeDocument];
+
+    if (fichierDocument) {
+      chemin = `${id}/${Date.now()}-${fichierDocument.name}`;
+      const { error: uploadError } = await supabase.storage.from('documents').upload(chemin, fichierDocument);
+      if (uploadError) {
+        setError(`Erreur : ${uploadError.message}`);
+        setEnvoiDocument(false);
+        return;
+      }
+      nomFichier = nomDocumentManuel.trim() || fichierDocument.name;
     }
+
+    await supabase.from('documents_moto').insert({
+      moto_id: id,
+      type: typeDocument,
+      chemin,
+      nom_fichier: nomFichier,
+      montant: montantDocument ? parseFloat(montantDocument) : null,
+    });
+    setFichierDocument(null);
+    setMontantDocument('');
+    setNomDocumentManuel('');
+    await chargerDocuments();
     setEnvoiDocument(false);
   }
 
   async function supprimerDocument(docId) {
+    const confirmation = window.confirm('Supprimer définitivement ce document ?');
+    if (!confirmation) return;
     await supabase.from('documents_moto').delete().eq('id', docId);
+    chargerDocuments();
+  }
+
+  async function changerTypeDocument(doc, nouveauType) {
+    await supabase.from('documents_moto').update({ type: nouveauType }).eq('id', doc.id);
     chargerDocuments();
   }
 
@@ -246,7 +298,7 @@ export default function EditMoto() {
   async function analyserTousLesDocuments() {
     setAnalyseGlobaleEnCours(true);
     for (const doc of documents) {
-      if (doc.montant == null) {
+      if (doc.montant == null && doc.chemin) {
         await analyserDocument(doc);
       }
     }
@@ -326,7 +378,7 @@ export default function EditMoto() {
   if (loading) return null;
   if (!profile?.is_admin) return <div className="page"><p>Accès réservé à l'administrateur.</p></div>;
 
-  const prixAchat = documents.filter((d) => d.type === 'achat').reduce((s, d) => s + (d.montant || 0), 0);
+  const prixAchat = documents.filter((d) => d.type === 'achat' || d.type === 'frais_achat').reduce((s, d) => s + (d.montant || 0), 0);
   const totalFrais = documents.filter((d) => d.type === 'entretien').reduce((s, d) => s + (d.montant || 0), 0);
   const totalGeneral = prixAchat + totalFrais;
 
@@ -514,28 +566,39 @@ export default function EditMoto() {
 
           <h2 style={{ marginTop: 28 }}>Ajouter un document</h2>
           <div className="card">
-            <label htmlFor="type_document">Type de document</label>
+            <label htmlFor="type_document">Type</label>
             <select id="type_document" value={typeDocument} onChange={(e) => setTypeDocument(e.target.value)}>
               {Object.entries(TYPES_DOCUMENTS).map(([valeur, label]) => (
                 <option key={valeur} value={valeur}>{label}</option>
               ))}
             </select>
-            <label htmlFor="montant_document">Montant (€, facultatif)</label>
-            <input id="montant_document" type="number" step="0.01" value={montantDocument} onChange={(e) => setMontantDocument(e.target.value)} />
-            <label htmlFor="fichier_document">Fichier (PDF, photo...)</label>
+            <label htmlFor="montant_document">Montant (€)</label>
+            <input id="montant_document" type="number" step="0.01" placeholder="Facultatif" value={montantDocument} onChange={(e) => setMontantDocument(e.target.value)} />
+            <label htmlFor="fichier_document">Fichier (facultatif — laisse vide pour un frais sans justificatif)</label>
             <input
               id="fichier_document"
               type="file"
               onChange={(e) => setFichierDocument(e.target.files?.[0] || null)}
             />
+            {!fichierDocument && (
+              <>
+                <label htmlFor="nom_document_manuel">Description</label>
+                <input
+                  id="nom_document_manuel"
+                  placeholder="Ex. Prix d'achat payé en liquide"
+                  value={nomDocumentManuel}
+                  onChange={(e) => setNomDocumentManuel(e.target.value)}
+                />
+              </>
+            )}
             <button
               type="button"
               className="btn"
               style={{ width: '100%' }}
-              disabled={!fichierDocument || envoiDocument}
+              disabled={(!fichierDocument && !montantDocument && !nomDocumentManuel.trim()) || envoiDocument}
               onClick={handleAjoutDocument}
             >
-              {envoiDocument ? 'Envoi...' : 'Ajouter ce document'}
+              {envoiDocument ? 'Envoi...' : 'Ajouter'}
             </button>
           </div>
 
@@ -545,19 +608,50 @@ export default function EditMoto() {
             const modifie = montantsEdites[d.id] !== undefined;
             return (
               <div key={d.id} className="card">
-                <p style={{ margin: '0 0 4px', fontWeight: 600 }}>{TYPES_DOCUMENTS[d.type] || 'Document'}</p>
-
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
-                  <input
-                    value={nomsEdites[d.id] !== undefined ? nomsEdites[d.id] : d.nom_fichier}
-                    onChange={(e) => setNomsEdites((n) => ({ ...n, [d.id]: e.target.value }))}
-                    style={{ marginBottom: 0, fontSize: 14, flex: 1 }}
-                  />
-                  {nomsEdites[d.id] !== undefined && nomsEdites[d.id] !== d.nom_fichier && (
-                    <button type="button" onClick={() => renommerDocument(d, nomsEdites[d.id])} style={{ whiteSpace: 'nowrap' }}>
-                      Renommer
-                    </button>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+                  {apercus[d.id] ? (
+                    <img
+                      src={apercus[d.id]}
+                      alt=""
+                      onClick={() => d.chemin && voirDocument(d.chemin)}
+                      style={{ width: 56, height: 56, objectFit: 'cover', border: '1px solid var(--ink)', flexShrink: 0, cursor: d.chemin ? 'pointer' : 'default' }}
+                    />
+                  ) : (
+                    <div
+                      onClick={() => d.chemin && voirDocument(d.chemin)}
+                      style={{
+                        width: 56, height: 56, flexShrink: 0, border: '1px solid var(--ink)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 11, textAlign: 'center', color: '#6b6a63', background: 'var(--gris)',
+                        cursor: d.chemin ? 'pointer' : 'default',
+                      }}
+                    >
+                      {d.chemin ? 'PDF' : 'Sans fichier'}
+                    </div>
                   )}
+                  <div style={{ flex: 1 }}>
+                    <select
+                      value={d.type}
+                      onChange={(e) => changerTypeDocument(d, e.target.value)}
+                      style={{ marginBottom: 6, minHeight: 40, fontSize: 14 }}
+                    >
+                      {Object.entries(TYPES_DOCUMENTS).map(([valeur, label]) => (
+                        <option key={valeur} value={valeur}>{label}</option>
+                      ))}
+                    </select>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        value={nomsEdites[d.id] !== undefined ? nomsEdites[d.id] : d.nom_fichier}
+                        onChange={(e) => setNomsEdites((n) => ({ ...n, [d.id]: e.target.value }))}
+                        style={{ marginBottom: 0, fontSize: 14, flex: 1 }}
+                      />
+                      {nomsEdites[d.id] !== undefined && nomsEdites[d.id] !== d.nom_fichier && (
+                        <button type="button" onClick={() => renommerDocument(d, nomsEdites[d.id])} style={{ whiteSpace: 'nowrap' }}>
+                          Renommer
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
@@ -580,10 +674,14 @@ export default function EditMoto() {
                 </div>
 
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" style={{ flex: 1 }} onClick={() => analyserDocument(d)} disabled={analyseEnCours === d.id}>
-                    {analyseEnCours === d.id ? 'Analyse...' : 'Analyser'}
-                  </button>
-                  <button type="button" style={{ flex: 1 }} onClick={() => voirDocument(d.chemin)}>Voir</button>
+                  {d.chemin && (
+                    <button type="button" style={{ flex: 1 }} onClick={() => analyserDocument(d)} disabled={analyseEnCours === d.id}>
+                      {analyseEnCours === d.id ? 'Analyse...' : 'Analyser'}
+                    </button>
+                  )}
+                  {d.chemin && (
+                    <button type="button" style={{ flex: 1 }} onClick={() => voirDocument(d.chemin)}>Voir</button>
+                  )}
                   <button type="button" style={{ flex: 1 }} onClick={() => supprimerDocument(d.id)}>Supprimer</button>
                 </div>
 
