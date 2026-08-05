@@ -14,8 +14,8 @@ const vide = {
 
 const TYPES_DOCUMENTS = {
   achat: "Facture d'achat de la moto",
-  frais_achat: 'Document achat',
-  entretien: 'Document entretien',
+  frais_achat: 'Frais achat',
+  entretien: 'Frais entretien',
   carte_grise: 'Carte grise',
   autre: 'Autre document',
 };
@@ -533,8 +533,8 @@ export default function EditMoto() {
           <h2 style={{ marginTop: 28 }}>Récapitulatif des frais</h2>
           <div className="card">
             <p style={{ margin: '0 0 4px' }}><strong>Facture d'achat de la moto :</strong> {prixAchatBrut.toLocaleString('fr-FR')} €</p>
-            <p style={{ margin: '0 0 4px' }}><strong>Document(s) achat :</strong> {fraisAchat.toLocaleString('fr-FR')} €</p>
-            <p style={{ margin: '0 0 4px' }}><strong>Document(s) entretien :</strong> {totalFrais.toLocaleString('fr-FR')} €</p>
+            <p style={{ margin: '0 0 4px' }}><strong>Frais achat :</strong> {fraisAchat.toLocaleString('fr-FR')} €</p>
+            <p style={{ margin: '0 0 4px' }}><strong>Frais entretien :</strong> {totalFrais.toLocaleString('fr-FR')} €</p>
             <p style={{ margin: '0 0 10px' }}><strong>Total général :</strong> {totalGeneral.toLocaleString('fr-FR')} €</p>
             <p style={{ fontSize: 13, color: '#6b6a63', margin: 0 }}>
               Moto achetée sans facture (particulier...) ? Ajoute quand même une ligne "Facture d'achat de la moto" ci-dessous avec le prix payé, sans joindre de fichier.
