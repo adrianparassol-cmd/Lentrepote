@@ -13,7 +13,7 @@ const vide = {
 
 const TYPES_DOCUMENTS = {
   achat: "Facture d'achat",
-  frais_achat: "Frais d'achat (sans facture)",
+  frais_achat: "Frais d'achat",
   entretien: "Facture d'entretien",
   carte_grise: 'Carte grise',
   autre: 'Autre document',
@@ -378,9 +378,10 @@ export default function EditMoto() {
   if (loading) return null;
   if (!profile?.is_admin) return <div className="page"><p>Accès réservé à l'administrateur.</p></div>;
 
-  const prixAchat = documents.filter((d) => d.type === 'achat' || d.type === 'frais_achat').reduce((s, d) => s + (d.montant || 0), 0);
+  const prixAchatBrut = documents.filter((d) => d.type === 'achat').reduce((s, d) => s + (d.montant || 0), 0);
+  const fraisAchat = documents.filter((d) => d.type === 'frais_achat').reduce((s, d) => s + (d.montant || 0), 0);
   const totalFrais = documents.filter((d) => d.type === 'entretien').reduce((s, d) => s + (d.montant || 0), 0);
-  const totalGeneral = prixAchat + totalFrais;
+  const totalGeneral = prixAchatBrut + fraisAchat + totalFrais;
 
   return (
     <div className="page" style={{ maxWidth: 480 }}>
@@ -527,8 +528,9 @@ export default function EditMoto() {
         <>
           <h2 style={{ marginTop: 28 }}>Factures et frais</h2>
           <div className="card">
-            <p style={{ margin: '0 0 4px' }}><strong>Prix d'achat :</strong> {prixAchat.toLocaleString('fr-FR')} €</p>
-            <p style={{ margin: '0 0 4px' }}><strong>Total des frais :</strong> {totalFrais.toLocaleString('fr-FR')} €</p>
+            <p style={{ margin: '0 0 4px' }}><strong>Prix d'achat (brut) :</strong> {prixAchatBrut.toLocaleString('fr-FR')} €</p>
+            <p style={{ margin: '0 0 4px' }}><strong>Frais d'achat :</strong> {fraisAchat.toLocaleString('fr-FR')} €</p>
+            <p style={{ margin: '0 0 4px' }}><strong>Frais d'entretien :</strong> {totalFrais.toLocaleString('fr-FR')} €</p>
             <p style={{ margin: '0 0 10px' }}><strong>Total général :</strong> {totalGeneral.toLocaleString('fr-FR')} €</p>
             <button
               type="button"
