@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
 import { useUser } from '../../lib/useUser';
 import { ajouterMois, estEnRetard } from '../../lib/format';
+import { OPTIONS_TRI, trierMotos, calculerStatsParMoto } from '../../lib/tri';
 import NavBar from '../../components/NavBar';
 
 const LABELS_ETAT = {
@@ -16,6 +17,9 @@ export default function AdminIndex() {
   const { profile, loading } = useUser();
   const [motos, setMotos] = useState([]);
   const [motosAvecNotes, setMotosAvecNotes] = useState(new Set());
+  const [sortiesEnCours, setSortiesEnCours] = useState([]);
+  const [statsParMoto, setStatsParMoto] = useState({});
+  const [tri, setTri] = useState('marque');
   const [sauvegardeEnCours, setSauvegardeEnCours] = useState(false);
   const [erreurSauvegarde, setErreurSauvegarde] = useState('');
   const [derniereSauvegarde, setDerniereSauvegarde] = useState(null);
@@ -24,6 +28,10 @@ export default function AdminIndex() {
     supabase.from('motos').select('*').order('marque').then(({ data }) => setMotos(data || []));
     supabase.from('entretien_notes').select('moto_id').then(({ data }) => {
       setMotosAvecNotes(new Set((data || []).map((n) => n.moto_id)));
+    });
+    supabase.from('sorties').select('*').then(({ data }) => {
+      setSortiesEnCours((data || []).filter((s) => s.statut === 'en_cours'));
+      setStatsParMoto(calculerStatsParMoto((data || []).filter((s) => s.statut === 'terminee')));
     });
     chargerDerniereSauvegarde();
   }, []);
@@ -48,6 +56,7 @@ export default function AdminIndex() {
   });
   const aEntretenir = motos.filter((m) => m.etat === 'entretien' || motosAvecNotes.has(m.id));
   const nonVerifiees = motos.filter((m) => !m.verifie);
+  const motosTriees = trierMotos(motos, tri, { sortiesEnCours, statsParMoto });
 
   async function toggleVerifie(moto) {
     const { error } = await supabase.from('motos').update({ verifie: !moto.verifie }).eq('id', moto.id);
@@ -139,11 +148,23 @@ export default function AdminIndex() {
       )}
 
       <h2 style={{ marginTop: 20 }}>Toutes les motos</h2>
-      {motos.map((m) => (
-        <div key={m.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Link href={`/admin/moto/${m.id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
-            <p style={{ fontWeight: 600, margin: '0 0 4px' }}>{m.marque} {m.modele}</p>
-            <p style={{ fontSize: 14, color: '#6b6a63', margin: 0 }}>{LABELS_ETAT[m.etat] || m.etat} · {m.kilometrage?.toLocaleString('fr-FR')} km</p>
+      <select value={tri} onChange={(e) => setTri(e.target.value)} style={{ marginBottom: 14, minHeight: 52, width: 'auto' }}>
+        {OPTIONS_TRI.map((o) => (
+          <option key={o.valeur} value={o.valeur}>Trier par : {o.label}</option>
+        ))}
+      </select>
+      {motosTriees.map((m) => (
+        <div key={m.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <Link href={`/admin/moto/${m.id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
+            {m.photo_principale_url ? (
+              <img src={m.photo_principale_url} alt="" style={{ width: 48, height: 48, objectFit: 'cover', border: '1px solid var(--ink)', flexShrink: 0 }} />
+            ) : (
+              <div style={{ width: 48, height: 48, flexShrink: 0, border: '1px solid var(--ink)', background: 'var(--gris)' }} />
+            )}
+            <div>
+              <p style={{ fontWeight: 600, margin: '0 0 4px' }}>{m.marque} {m.modele}</p>
+              <p style={{ fontSize: 14, color: '#6b6a63', margin: 0 }}>{LABELS_ETAT[m.etat] || m.etat} · {m.kilometrage?.toLocaleString('fr-FR')} km</p>
+            </div>
           </Link>
           <button
             type="button"

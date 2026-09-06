@@ -398,6 +398,13 @@ export default function EditMoto() {
           </button>
         )}
       </div>
+      {!estNouveau && (
+        form.photo_principale_url ? (
+          <img src={form.photo_principale_url} alt="" className="photo-carree" style={{ marginBottom: 20 }} />
+        ) : (
+          <div className="photo-placeholder photo-carree" style={{ marginBottom: 20 }}>Pas de photo</div>
+        )
+      )}
       <form onSubmit={handleSubmit}>
         <label htmlFor="marque">Marque</label>
         <input id="marque" value={form.marque} onChange={(e) => update('marque', e.target.value)} required />

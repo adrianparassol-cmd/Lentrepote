@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
 import { useUser } from '../../lib/useUser';
@@ -96,6 +97,18 @@ export default function FicheMoto() {
     if (!error && data) window.open(data.signedUrl, '_blank');
   }
 
+  async function telechargerCarteGrise() {
+    if (!carteGrise) return;
+    const { data, error } = await supabase.storage.from('documents').download(carteGrise.chemin);
+    if (error || !data) return;
+    const url = URL.createObjectURL(data);
+    const lien = document.createElement('a');
+    lien.href = url;
+    lien.download = carteGrise.nom_fichier || 'carte-grise';
+    lien.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (loading || !moto) return null;
 
   const disponible = moto.etat === 'roulante' && !sortieActive;
@@ -151,9 +164,12 @@ export default function FicheMoto() {
 
   return (
     <div className="page">
+      <Head>
+        <title>{moto.marque} {moto.modele} - {moto.annee || '?'}</title>
+      </Head>
       <NavBar isAdmin={profile?.is_admin} />
       <Link href="/recap">← Retour à la liste</Link>
-      <h1 style={{ marginTop: 12 }}>{moto.marque} {moto.modele}</h1>
+      <h1 style={{ marginTop: 12 }}>{moto.marque} {moto.modele} - {moto.annee || '?'}</h1>
 
       {moto.photo_principale_url ? (
         <img
@@ -209,11 +225,28 @@ export default function FicheMoto() {
         )}
       </div>
 
-      {carteGrise && (
-        <button type="button" className="btn" style={{ width: '100%', marginBottom: 14 }} onClick={voirCarteGrise}>
-          Voir la carte grise
-        </button>
-      )}
+      <div className="card" style={{ borderWidth: 2 }}>
+        <p style={{ margin: '0 0 10px', fontWeight: 700 }}>Carte grise</p>
+        {carteGrise ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn-primary" style={{ flex: 1 }} onClick={voirCarteGrise}>
+              Voir
+            </button>
+            <button type="button" style={{ flex: 1 }} onClick={telechargerCarteGrise}>
+              Télécharger
+            </button>
+          </div>
+        ) : (
+          <>
+            <p style={{ margin: '0 0 10px', color: '#6b6a63' }}>Carte grise non renseignée sur cette fiche.</p>
+            {profile?.is_admin && (
+              <Link href={`/admin/moto/${moto.id}`} className="btn admin-highlight" style={{ width: '100%' }}>
+                Ajouter la carte grise
+              </Link>
+            )}
+          </>
+        )}
+      </div>
 
       {profile?.is_admin && (
         <Link href={`/admin/moto/${moto.id}`} className="btn admin-highlight" style={{ marginBottom: 14, display: 'inline-flex' }}>

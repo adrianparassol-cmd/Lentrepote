@@ -5,22 +5,23 @@ import { useUser } from '../lib/useUser';
 import Masthead from '../components/Masthead';
 import NavBar from '../components/NavBar';
 import { ajouterMois, estEnRetard } from '../lib/format';
+import { OPTIONS_TRI, trierMotos, calculerStatsParMoto } from '../lib/tri';
 
 export default function Recap() {
   const { profile, loading } = useUser();
   const [motos, setMotos] = useState([]);
   const [sortiesEnCours, setSortiesEnCours] = useState([]);
+  const [statsParMoto, setStatsParMoto] = useState({});
   const [search, setSearch] = useState('');
+  const [tri, setTri] = useState('marque');
 
   useEffect(() => {
     async function load() {
       const { data: motosData } = await supabase.from('motos').select('*').order('marque');
-      const { data: sortiesData } = await supabase
-        .from('sorties')
-        .select('*, profiles(nom)')
-        .eq('statut', 'en_cours');
+      const { data: sortiesData } = await supabase.from('sorties').select('*, profiles(nom)');
       setMotos(motosData || []);
-      setSortiesEnCours(sortiesData || []);
+      setSortiesEnCours((sortiesData || []).filter((s) => s.statut === 'en_cours'));
+      setStatsParMoto(calculerStatsParMoto((sortiesData || []).filter((s) => s.statut === 'terminee')));
     }
     load();
   }, []);
@@ -31,6 +32,7 @@ export default function Recap() {
     const q = search.toLowerCase();
     return m.marque.toLowerCase().includes(q) || m.modele.toLowerCase().includes(q);
   });
+  const triees = trierMotos(filtered, tri, { sortiesEnCours, statsParMoto });
 
   const besoinDeRouler = motos.filter((m) => {
     if (m.etat !== 'roulante') return false;
@@ -55,13 +57,18 @@ export default function Recap() {
         <h1>Les motos</h1>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
         <input
           placeholder="Rechercher (marque, modèle...)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ marginBottom: 0 }}
+          style={{ marginBottom: 0, flex: 1, minWidth: 200 }}
         />
+        <select value={tri} onChange={(e) => setTri(e.target.value)} style={{ marginBottom: 0, minHeight: 52, width: 'auto' }}>
+          {OPTIONS_TRI.map((o) => (
+            <option key={o.valeur} value={o.valeur}>Trier par : {o.label}</option>
+          ))}
+        </select>
       </div>
 
       {besoinDeRouler.length > 0 && (
@@ -85,7 +92,7 @@ export default function Recap() {
 
       <h2>Toutes les motos</h2>
       <div className="grid">
-        {filtered.map((moto) => {
+        {triees.map((moto) => {
           const statut = statutDe(moto);
           return (
             <Link key={moto.id} href={`/moto/${moto.id}`} className="card" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
