@@ -1,0 +1,113 @@
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { supabase } from '../lib/supabaseClient';
+import { useUser } from '../lib/useUser';
+import Masthead from '../components/Masthead';
+import NavBar from '../components/NavBar';
+import { ajouterMois, estEnRetard } from '../lib/format';
+import { OPTIONS_TRI, trierMotos, calculerStatsParMoto } from '../lib/tri';
+
+export default function Recap() {
+  const { profile, loading } = useUser();
+  const [motos, setMotos] = useState([]);
+  const [sortiesEnCours, setSortiesEnCours] = useState([]);
+  const [statsParMoto, setStatsParMoto] = useState({});
+  const [search, setSearch] = useState('');
+  const [tri, setTri] = useState('marque');
+
+  useEffect(() => {
+    async function load() {
+      const { data: motosData } = await supabase.from('motos').select('*').order('marque');
+      const { data: sortiesData } = await supabase.from('sorties').select('*, profiles(nom)');
+      setMotos(motosData || []);
+      setSortiesEnCours((sortiesData || []).filter((s) => s.statut === 'en_cours'));
+      setStatsParMoto(calculerStatsParMoto((sortiesData || []).filter((s) => s.statut === 'terminee')));
+    }
+    load();
+  }, []);
+
+  if (loading) return null;
+
+  const filtered = motos.filter((m) => {
+    const q = search.toLowerCase();
+    return m.marque.toLowerCase().includes(q) || m.modele.toLowerCase().includes(q);
+  });
+  const triees = trierMotos(filtered, tri, { sortiesEnCours, statsParMoto });
+
+  const besoinDeRouler = motos.filter((m) => {
+    if (m.etat !== 'roulante') return false;
+    const prochain = m.dernier_roulage ? ajouterMois(m.dernier_roulage, 12) : null;
+    return prochain ? estEnRetard(prochain) : false;
+  });
+
+  function statutDe(moto) {
+    if (moto.etat === 'non_roulante') return { label: 'Non roulante', classe: 'badge-gris' };
+    if (moto.etat === 'restauration') return { label: 'À restaurer', classe: 'badge-rouge' };
+    if (moto.etat === 'entretien') return { label: 'Entretien requis', classe: 'badge-rouge' };
+    const sortie = sortiesEnCours.find((s) => s.moto_id === moto.id);
+    if (sortie) return { label: `Utilisée par ${sortie.profiles?.nom || '...'}`, classe: 'badge-orange' };
+    return { label: 'Disponible', classe: 'badge-vert' };
+  }
+
+  return (
+    <div className="page">
+      <Masthead />
+      <NavBar isAdmin={profile?.is_admin} />
+      <div className="top-bar">
+        <h1>Les motos</h1>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+        <input
+          placeholder="Rechercher (marque, modèle...)"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ marginBottom: 0, flex: 1, minWidth: 200 }}
+        />
+        <select value={tri} onChange={(e) => setTri(e.target.value)} style={{ marginBottom: 0, minHeight: 52, width: 'auto' }}>
+          {OPTIONS_TRI.map((o) => (
+            <option key={o.valeur} value={o.valeur}>Trier par : {o.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {besoinDeRouler.length > 0 && (
+        <>
+          <h2>Motos qui ont besoin de rouler</h2>
+          <div className="grid" style={{ marginBottom: 24 }}>
+            {besoinDeRouler.map((moto) => (
+              <Link key={moto.id} href={`/moto/${moto.id}`} className="card" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                {moto.photo_principale_url ? (
+                  <img src={moto.photo_principale_url} alt="" className="photo-carree" style={{ marginBottom: 10 }} />
+                ) : (
+                  <div className="photo-placeholder photo-carree" style={{ marginBottom: 10 }}>Pas de photo</div>
+                )}
+                <p style={{ fontWeight: 600, margin: '0 0 4px' }}>{moto.marque} {moto.modele}</p>
+                <span className="badge badge-rouge">Aurait besoin de rouler</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+
+      <h2>Toutes les motos</h2>
+      <div className="grid">
+        {triees.map((moto) => {
+          const statut = statutDe(moto);
+          return (
+            <Link key={moto.id} href={`/moto/${moto.id}`} className="card" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              {moto.photo_principale_url ? (
+                <img src={moto.photo_principale_url} alt={`${moto.marque} ${moto.modele}`} className="photo-carree" style={{ marginBottom: 10 }} />
+              ) : (
+                <div className="photo-placeholder photo-carree" style={{ marginBottom: 10 }}>Pas de photo</div>
+              )}
+              <p style={{ fontWeight: 600, margin: '0 0 4px' }}>{moto.marque} {moto.modele}</p>
+              <p style={{ fontSize: 14, color: '#6b6a63', margin: '0 0 10px' }}>{moto.annee} · {moto.kilometrage?.toLocaleString('fr-FR')} km</p>
+              <span className={`badge ${statut.classe}`}>{statut.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
